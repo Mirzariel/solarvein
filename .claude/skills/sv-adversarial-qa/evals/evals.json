@@ -1,0 +1,4 @@
+{"skill_name":"sv-adversarial-qa","evals":[
+ {"id":1,"prompt":"QA the site before release — desktop and mobile.","expected_output":"Runs visual-qa.mjs at all widths with checks + reduced motion, inspects PNGs, writes QA.md with PASS/FAIL verdict.","assertions":[{"text":"Screenshots exist for 1440,1280,768,390,360"},{"text":"Rapid switching, slider extremes and dead-control checks were run"},{"text":"QA.md contains a release verdict and evidence paths"}]},
+ {"id":2,"prompt":"Does the mobile stage still let me scroll the page when I swipe over the 3D model?","expected_output":"Touch-context Playwright test with vertical swipe, measured scrollY change, evidence.","assertions":[{"text":"Uses a hasTouch context and reports scrollY before/after the swipe"}]}
+]}

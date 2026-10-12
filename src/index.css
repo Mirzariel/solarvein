@@ -1,0 +1,722 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/geist';
+@import '@fontsource-variable/geist-mono';
+
+/* ──────────────────────────────────────────────────────────────
+   SolarVein Liquid — design tokens. Source of truth with DESIGN_SYSTEM.md.
+   Three registers: scientific editorial (page, light) · precision instrument
+   (mono numbers) · cinematic product (the dark 3D stage only).
+   Colour is physics: heat = amber, cool = blue, electrical = ink, structure = neutral.
+   Spacing scale = Tailwind steps 1,2,3,4,6,8,12,16,24  (4/8/12/16/24/32/48/64/96 px).
+   ────────────────────────────────────────────────────────────── */
+@theme {
+  /* Page (light) */
+  --color-paper: #f6f5f2;
+  --color-surface: #ffffff;
+  --color-sunken: #ecebe7;
+  /* Daylight Concrete: light architectural concrete + the one sun accent (highlights only, never data). */
+  --color-concrete: #e7e5e0;
+  --color-sun: #f5b03d;
+  --color-ink: #111214;
+  /* Contrast (Perf/A11y audit): ink-2 5.5:1 on paper, ≥ 4.9 on sunken/washes. ink-3 4.5:1 on paper (tertiary TEXT ok).
+     `tick` is the pale grey for NON-text ticks/rules only. */
+  --color-ink-2: #5d6066;
+  --color-ink-3: #696c72;
+  --color-tick: #96989c;
+  --color-line: #e4e2dd;
+  --color-line-strong: #cfccc5;
+  /* heat: large fills / on-stage-adjacent use only. Chart marks, arrows, dots on light = heat-mark (3.46:1 on paper). */
+  --color-heat: #d98442;
+  --color-heat-mark: #c4702d;
+  --color-heat-ink: #a8561a;
+  --color-heat-wash: #fbf0e6;
+  --color-cool: #398bae;
+  --color-cool-ink: #1f6785;
+  --color-cool-wash: #e8f2f7;
+  --color-loss: #b8c0c6;
+  --color-focus: #111214;
+  --color-critical: #b4442f;
+
+  /* Stage (dark 3D chrome + canvas) */
+  --color-stage-0: #0e1114;
+  --color-stage-1: #15191d;
+  --color-stage-line: #262c33;
+  --color-stage-ink: #e9ecee;
+  --color-stage-ink-2: #8d979f;
+  --color-stage-heat: #f0a05c;
+  --color-stage-cool: #5fb3d6;
+  --color-stage-electric: #f1ede4;
+  --color-stage-liquid-cold: #5e8fa3;
+  --color-stage-liquid-hot: #d79a5e;
+
+  /* Fonts: Geist (display + UI; Medium 500 for headings) + Geist Mono (instrument readouts). One family, two cuts. */
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, 'Segoe UI', sans-serif;
+  --font-display: var(--font-sans);
+  --font-mono: 'Geist Mono Variable', ui-monospace, 'Cascadia Mono', monospace;
+
+  /* Type scale (v2 §B.3). Values below = ≥ 1280 px; the :root blocks further down step them at 1279 / 1023 / 767 / 480.
+     text-<name> sets size, line-height, tracking, weight. Weights used: 400 / 500 / 600 (never 700). Stretch is set by .text-* rules. */
+  --text-display-xl: 96px;
+  --text-display-xl--line-height: 92px;
+  --text-display-xl--letter-spacing: -0.04em;
+  --text-display-xl--font-weight: 500;
+  --text-display-l: 64px;
+  --text-display-l--line-height: 64px;
+  --text-display-l--letter-spacing: -0.032em;
+  --text-display-l--font-weight: 500;
+  --text-number-xl: 96px;
+  --text-number-xl--line-height: 92px;
+  --text-number-xl--letter-spacing: -0.045em;
+  --text-number-xl--font-weight: 500;
+  --text-h3: 28px;
+  --text-h3--line-height: 34px;
+  --text-h3--letter-spacing: -0.02em;
+  --text-h3--font-weight: 500;
+  --text-lead: 22px;
+  --text-lead--line-height: 32px;
+  --text-lead--letter-spacing: -0.012em;
+  --text-lead--font-weight: 400;
+  --text-body-l: 19px;
+  --text-body-l--line-height: 30px;
+  --text-body-s: 17px;
+  --text-body-s--line-height: 26px;
+  --text-ui: 15px;
+  --text-ui--line-height: 20px;
+  --text-ui--font-weight: 500;
+  --text-caption: 14px;
+  --text-caption--line-height: 20px;
+  --text-label: 12px;
+  --text-label--line-height: 16px;
+  --text-label--letter-spacing: 0.01em;
+  --text-label--font-weight: 500;
+  --text-readout-xl: 44px;
+  --text-readout-xl--line-height: 48px;
+  --text-readout-xl--letter-spacing: -0.02em;
+  --text-readout-xl--font-weight: 500;
+  --text-readout-l: 32px;
+  --text-readout-l--line-height: 36px;
+  --text-readout-l--letter-spacing: -0.02em;
+  --text-readout-l--font-weight: 500;
+  --text-readout-m: 24px;
+  --text-readout-m--letter-spacing: -0.01em;
+  --text-readout-m--line-height: 28px;
+  --text-readout-m--font-weight: 500;
+  --text-mono-s: 14px;
+  --text-mono-s--line-height: 20px;
+  --text-mono-label: 12px;
+  --text-mono-label--line-height: 16px;
+  --text-mono-label--letter-spacing: 0.02em;
+  /* Compat names (same values as the v2 token they map to). `body` = body-s: dense UI body; prose is body-l. */
+  --text-display: 64px;
+  --text-display--line-height: 64px;
+  --text-display--letter-spacing: -0.032em;
+  --text-display--font-weight: 500;
+  --text-h2: 64px;
+  --text-h2--line-height: 64px;
+  --text-h2--letter-spacing: -0.032em;
+  --text-h2--font-weight: 500;
+  --text-h3-lg: 28px;
+  --text-h3-lg--line-height: 34px;
+  --text-h3-lg--letter-spacing: -0.02em;
+  --text-h3-lg--font-weight: 500;
+  --text-body: 17px;
+  --text-body--line-height: 26px;
+  --text-prose: 19px;
+  --text-prose--line-height: 30px;
+  --text-small: 14px;
+  --text-small--line-height: 20px;
+  --text-button: 15px;
+  --text-button--line-height: 20px;
+  --text-button--font-weight: 500;
+  --text-stat: 96px;
+  --text-stat--line-height: 92px;
+  --text-stat--letter-spacing: -0.045em;
+  --text-stat--font-weight: 500;
+
+  /* Radii: 4 / 8 / 12 / 16 only */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+
+  /* Elevation (v2 §D.1): soft, tinted ink, never pure black, never a glow. */
+  --shadow-0: none;
+  --shadow-1: 0 1px 2px rgb(23 28 34 / 0.06), 0 1px 1px rgb(23 28 34 / 0.04);
+  --shadow-2: 0 2px 4px rgb(23 28 34 / 0.05), 0 8px 24px rgb(23 28 34 / 0.08);
+  --shadow-3: 0 1px 2px rgb(17 18 20 / 0.05), 0 12px 32px -8px rgb(17 18 20 / 0.14), 0 40px 80px -24px rgb(17 18 20 / 0.18);
+  /* Floating product: a contact shadow + a long, soft daylight shadow (never a glow). */
+  --shadow-4: 0 1px 2px rgb(17 18 20 / 0.06), 0 24px 48px -16px rgb(17 18 20 / 0.24), 0 72px 140px -48px rgb(17 18 20 / 0.36);
+  /* Same values under the earlier names (still used). */
+  --shadow-e1: 0 1px 2px rgb(23 28 34 / 0.06), 0 1px 1px rgb(23 28 34 / 0.04);
+  --shadow-e2: 0 2px 4px rgb(23 28 34 / 0.05), 0 8px 24px rgb(23 28 34 / 0.08);
+  --shadow-e3: 0 4px 8px rgb(14 17 20 / 0.1), 0 16px 48px rgb(14 17 20 / 0.18);
+  --shadow-thumb: 0 1px 2px rgb(23 28 34 / 0.06), 0 1px 1px rgb(23 28 34 / 0.04);
+  --shadow-pop: 0 2px 4px rgb(23 28 34 / 0.05), 0 8px 24px rgb(23 28 34 / 0.08);
+
+  /* Motion */
+  --ease-ui: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --breakpoint-xs: 30rem;
+
+  /* Earlier easing names no longer exist: use ease-ui. (Legacy colour/type aliases removed: nothing references them.) */
+}
+
+:root {
+  color-scheme: light;
+  /* Motion tokens */
+  --measure: 60ch;
+  --dur-micro: 120ms;
+  --dur-fast: 150ms;
+  --dur-base: 220ms;
+  --dur-slow: 300ms;
+  --dur-scene: 800ms;
+  --dur-weather: 1000ms;
+  /* Spacing scale (px) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+  --space-9: 96px;
+  /* Layout */
+  --container: 1280px;
+  --header-h: 56px;
+  --gutter-x: 40px;
+  --col-gap: 24px;
+  --section-y: 96px;
+  --head-gap: 48px;
+  --block-gap: 48px;
+  --stack-gap: 24px;
+  --tight-gap: 8px;
+  --control-h-sm: 32px;
+  --control-h-md: 40px;
+}
+
+/* Type steps: 1024–1279 / 768–1023 / 481–767 / ≤ 480. Cascade: each block overrides the previous. */
+@media (max-width: 1279px) {
+  :root {
+    --text-display-xl: 84px;
+    --text-display-xl--line-height: 80px;
+    --text-display-l: 56px;
+    --text-display-l--line-height: 58px;
+    --text-display: 56px;
+    --text-display--line-height: 58px;
+    --text-h2: 56px;
+    --text-h2--line-height: 58px;
+    --text-number-xl: 84px;
+    --text-number-xl--line-height: 80px;
+    --text-stat: 84px;
+    --text-stat--line-height: 80px;
+  }
+}
+@media (max-width: 1023px) {
+  :root {
+    --text-display-xl: 68px;
+    --text-display-xl--line-height: 66px;
+    --text-display-l: 48px;
+    --text-display-l--line-height: 52px;
+    --text-display: 48px;
+    --text-display--line-height: 52px;
+    --text-h2: 48px;
+    --text-h2--line-height: 52px;
+    --text-number-xl: 72px;
+    --text-number-xl--line-height: 70px;
+    --text-stat: 72px;
+    --text-stat--line-height: 70px;
+    --text-h3: 24px;
+    --text-h3--line-height: 30px;
+    --text-h3-lg: 24px;
+    --text-h3-lg--line-height: 30px;
+    --text-lead: 20px;
+    --text-lead--line-height: 30px;
+    --text-body-l: 18px;
+    --text-body-l--line-height: 28px;
+    --text-prose: 18px;
+    --text-prose--line-height: 28px;
+    --text-readout-xl: 38px;
+    --text-readout-xl--line-height: 42px;
+  }
+}
+@media (max-width: 767px) {
+  :root {
+    --text-display-xl: 52px;
+    --text-display-xl--line-height: 52px;
+    --text-display-l: 40px;
+    --text-display-l--line-height: 44px;
+    --text-display: 40px;
+    --text-display--line-height: 44px;
+    --text-h2: 40px;
+    --text-h2--line-height: 44px;
+    --text-number-xl: 56px;
+    --text-number-xl--line-height: 56px;
+    --text-stat: 56px;
+    --text-stat--line-height: 56px;
+    --text-h3: 22px;
+    --text-h3--line-height: 28px;
+    --text-h3-lg: 22px;
+    --text-h3-lg--line-height: 28px;
+    --text-lead: 19px;
+    --text-lead--line-height: 28px;
+    --text-body-l: 17px;
+    --text-body-l--line-height: 26px;
+    --text-prose: 17px;
+    --text-prose--line-height: 26px;
+    --text-body: 16px;
+    --text-body--line-height: 24px;
+    --text-body-s: 16px;
+    --text-body-s--line-height: 24px;
+    --text-readout-xl: 34px;
+    --text-readout-xl--line-height: 38px;
+    --text-readout-m: 22px;
+    --text-readout-m--line-height: 26px;
+  }
+}
+@media (max-width: 480px) {
+  :root {
+    --text-display-xl: 44px;
+    --text-display-xl--line-height: 44px;
+    --text-display-l: 36px;
+    --text-display-l--line-height: 40px;
+    --text-display: 36px;
+    --text-display--line-height: 40px;
+    --text-h2: 36px;
+    --text-h2--line-height: 40px;
+    --text-number-xl: 48px;
+    --text-number-xl--line-height: 48px;
+    --text-stat: 48px;
+    --text-stat--line-height: 48px;
+    --text-readout-l: 26px;
+    --text-readout-l--line-height: 30px;
+  }
+}
+
+/* Tablet (<1024) */
+@media (max-width: 1023px) {
+  :root {
+    --gutter-x: 24px;
+    --col-gap: 16px;
+    --section-y: 64px;
+    --head-gap: 32px;
+    --block-gap: 32px;
+    --stack-gap: 16px;
+  }
+}
+/* Mobile (<=480) */
+@media (max-width: 480px) {
+  :root {
+    --gutter-x: 16px;
+    --section-y: 48px;
+  }
+}
+
+/* ───── Base ───── */
+html {
+  background: var(--color-paper);
+  scroll-behavior: smooth;
+  overflow-x: clip;
+  scroll-padding-top: calc(var(--header-h) + 16px);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 17px;
+  line-height: 26px;
+  letter-spacing: -0.005em;
+  /* Geist: proportional figures in prose; tabular only via .num / .tnum (data). ss01-style alternates not used. */
+  font-optical-sizing: auto;
+  font-kerning: normal;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  text-wrap: balance;
+  hanging-punctuation: first;
+}
+p,
+li,
+figcaption {
+  text-wrap: pretty;
+  hanging-punctuation: first last;
+}
+/* Display setting: Geist, Medium. No width-axis tricks; tracking lives in the tokens. */
+.text-display-xl,
+.text-display-l,
+.text-display,
+.text-h2,
+.text-h3,
+.text-h3-lg,
+.text-number-xl,
+.text-stat,
+.text-lead {
+  font-family: var(--font-display);
+}
+.text-display-xl {
+  margin-left: -0.05em; /* optical alignment of the capital with the body edge */
+}
+.text-number-xl,
+.text-stat {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+::selection {
+  background: rgb(217 132 66 / 0.25);
+  color: var(--color-ink);
+}
+
+/* Focus ring: 2 px ink, offset 2. `.on-stage` (or any ancestor with data-tone="stage") flips it light. */
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.on-stage,
+[data-tone='stage'] {
+  --color-focus: var(--color-stage-ink);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--color-line-strong);
+  border-radius: 999px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* In the base layer so colour utilities (text-ink, text-surface…) on links win. */
+@layer base {
+  a {
+    color: inherit;
+  }
+}
+
+/* ───── Utilities ───── */
+/* Reading measure: 55–70 ch. Default 62ch; -narrow 55ch; -wide 70ch. */
+@utility measure {
+  max-width: var(--measure);
+}
+
+/* OpenType hooks. `tnum` is for DATA only; prose keeps proportional figures. */
+@utility tnum {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+@utility case {
+  font-feature-settings: 'case';
+}
+
+/* Measured number: mono, tabular (Plex Mono default dotted zero; no slashed-zero feature). */
+@utility num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+@utility mono {
+  font-family: var(--font-mono);
+}
+
+@utility hairline {
+  border: 1px solid var(--color-line);
+}
+
+/* Page container: content max 1280 + gutters 16 / 24 / 40. */
+@utility page-wrap {
+  width: 100%;
+  max-width: calc(var(--container) + 2 * var(--gutter-x));
+  margin-inline: auto;
+  padding-inline: var(--gutter-x);
+}
+
+/* 12-column grid: use col-span-N / lg:col-span-N on children. Gap 16 (<1024) / 24. */
+@utility grid-12 {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  column-gap: var(--col-gap);
+}
+
+/* Section rhythm: 96 / 64 / 48 top and bottom. */
+@utility section {
+  padding-block: var(--section-y);
+}
+
+/* "01 — Pengalaman": one quiet line that sits directly on the heading it labels (no rule, no far-away pieces). */
+@utility section-index {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  color: var(--color-ink-2);
+}
+
+/* ───── Sky (behind the 01 stage): sunny and rainy gradients, cross-faded by WeatherSky ─────
+   Gradients are allowed ONLY because they model light. */
+:root {
+  --sky-sunny-0: #f2d3a0;
+  --sky-sunny-1: #f6e6cc;
+  --sky-sunny-2: #f7f2e8;
+  --sky-sunny-3: #f6f5f2;
+  --sky-rainy-0: #a9b7c1;
+  --sky-rainy-1: #cbd5db;
+  --sky-rainy-2: #e4e9eb;
+  --sky-rainy-3: #f6f5f2;
+}
+
+@utility sky-sunny {
+  background-image: linear-gradient(180deg, var(--sky-sunny-0) 0%, var(--sky-sunny-1) 35%, var(--sky-sunny-2) 70%, var(--sky-sunny-3) 100%);
+}
+@utility sky-rainy {
+  background-image: linear-gradient(180deg, var(--sky-rainy-0) 0%, var(--sky-rainy-1) 35%, var(--sky-rainy-2) 70%, var(--sky-rainy-3) 100%);
+}
+
+/* Transition recipe for controls: colour/bg/border/transform/opacity, 150 ms, UI ease. */
+@utility transition-ui {
+  transition-property: color, background-color, border-color, transform, opacity, box-shadow;
+  transition-duration: var(--dur-fast);
+  transition-timing-function: var(--ease-ui);
+}
+@utility transition-slide {
+  transition-property: transform;
+  transition-duration: var(--dur-base);
+  transition-timing-function: var(--ease-ui);
+}
+
+/* ───── Slider (precision instrument) ─────
+   Native <input type=range> on a transparent track. The visible track, fill and ticks are drawn by
+   the Slider component with the same thumb-aware geometry: x = thumb/2 + (100% − thumb) × p. */
+.slider-ctl {
+  --thumb: 22px;
+  --range-h: 32px;
+  --thumb-shadow: 0 0 0 0.5px rgb(17 18 20 / 0.12), 0 1px 2px rgb(17 18 20 / 0.18), 0 4px 12px rgb(17 18 20 / 0.12);
+}
+@media (pointer: coarse) {
+  .slider-ctl {
+    --thumb: 26px;
+    --range-h: 44px;
+  }
+}
+.range {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: var(--range-h);
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  touch-action: pan-y;
+}
+.range:focus-visible {
+  outline: none;
+}
+.range:disabled {
+  cursor: not-allowed;
+}
+.range::-webkit-slider-runnable-track {
+  height: var(--range-h);
+  background: transparent;
+}
+.range::-moz-range-track {
+  height: var(--range-h);
+  background: transparent;
+}
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
+  width: var(--thumb);
+  height: var(--thumb);
+  margin-top: calc((var(--range-h) - var(--thumb)) / 2);
+  border-radius: 50%;
+  background: var(--color-surface);
+  border: 0;
+  box-shadow: var(--thumb-shadow);
+  transition:
+    transform var(--dur-fast) var(--ease-ui),
+    box-shadow var(--dur-fast) var(--ease-ui);
+}
+.range::-moz-range-thumb {
+  box-sizing: border-box;
+  width: var(--thumb);
+  height: var(--thumb);
+  border-radius: 50%;
+  background: var(--color-surface);
+  border: 0;
+  box-shadow: var(--thumb-shadow);
+  transition:
+    transform var(--dur-fast) var(--ease-ui),
+    box-shadow var(--dur-fast) var(--ease-ui);
+}
+.range:not(:disabled):hover::-webkit-slider-thumb {
+  transform: scale(1.06);
+}
+.range:not(:disabled):hover::-moz-range-thumb {
+  transform: scale(1.06);
+}
+.range:not(:disabled):active::-webkit-slider-thumb {
+  transform: scale(1.12);
+  box-shadow: var(--thumb-shadow), 0 0 0 7px rgb(17 18 20 / 0.07);
+}
+.range:not(:disabled):active::-moz-range-thumb {
+  transform: scale(1.12);
+  box-shadow: var(--thumb-shadow), 0 0 0 7px rgb(17 18 20 / 0.07);
+}
+.range:focus-visible::-webkit-slider-thumb {
+  box-shadow:
+    var(--thumb-shadow),
+    0 0 0 3px var(--color-surface),
+    0 0 0 5px var(--color-focus);
+}
+.range:focus-visible::-moz-range-thumb {
+  box-shadow:
+    var(--thumb-shadow),
+    0 0 0 3px var(--color-surface),
+    0 0 0 5px var(--color-focus);
+}
+
+/* ───── Purposeful SVG motion (only when the user allows motion) ─────
+   Every animation maps to simulation state: flow = liquid circulation (always inlet→outlet),
+   nudge-down = heat harvest, nudge-up = heat rejection. */
+
+@keyframes sv-nudge-down {
+  0%,
+  100% {
+    transform: translateY(-2px);
+    opacity: 0.75;
+  }
+  50% {
+    transform: translateY(4px);
+    opacity: 1;
+  }
+}
+@keyframes sv-nudge-up {
+  0%,
+  100% {
+    transform: translateY(2px);
+    opacity: 0.75;
+  }
+  50% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+@keyframes sv-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.fx-nudge-down,
+.fx-nudge-up,
+.fx-pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .fx-nudge-down {
+    animation: sv-nudge-down 1.8s var(--ease-ui) infinite;
+  }
+  .fx-nudge-up {
+    animation: sv-nudge-up 1.8s var(--ease-ui) infinite;
+  }
+  .fx-pulse {
+    animation: sv-pulse 2.4s var(--ease-ui) infinite;
+  }
+}
+
+/* ───── Reduced motion: drop all non-essential motion (thumb slide, disclosure height, tweens) ───── */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    transition-delay: 0s !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ───── Smooth scroll (Lenis) ───── */
+html.lenis-on {
+  scroll-behavior: auto;
+}
+html.lenis-on body {
+  height: auto;
+}
+.lenis.lenis-stopped {
+  overflow: clip;
+}
+.lenis.lenis-smooth iframe {
+  pointer-events: none;
+}
+
+/* ───── Daylight finish ───── */
+/* Concrete wash: the page's one texture, a very soft vertical light falloff (sun from above), never a colour gradient. */
+@utility daylight {
+  background-image: linear-gradient(180deg, #fbfaf8 0%, var(--color-paper) 40%, var(--color-sunken) 100%);
+}
+
+/* Opening intro in CSS (not GSAP): it must run on time even while the 3D chunk compiles on the main thread. */
+@keyframes sv-rise-line {
+  from {
+    transform: translate3d(0, 110%, 0);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes sv-fade-up {
+  from {
+    opacity: 0;
+    transform: translate3d(0, var(--rise, 12px), 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .intro-line {
+    animation: sv-rise-line 0.95s var(--ease-ui) both;
+    animation-delay: var(--d, 0s);
+  }
+  .intro-fade {
+    animation: sv-fade-up 0.8s var(--ease-ui) both;
+    animation-delay: var(--d, 0.45s);
+  }
+}
