@@ -158,9 +158,9 @@ export default function Hero() {
     // camera pull-back, scrubbed with the card's approach (continuous 0..1; the camera springs after it)
     ScrollTrigger.create({
       trigger: '[data-stage-card]',
-      start: 'top 40%',
-      end: 'bottom 55%',
-      onUpdate: (self) => store.getState().setFraming(self.progress),
+      start: 'top 10%',
+      end: 'top -35%',
+      onUpdate: (self) => store.getState().setFramingRaw(self.progress),
     });
     if (root.current?.querySelector('[data-strip]')) gsap.fromTo('[data-strip] > *', { autoAlpha: 0, y: 16 }, { autoAlpha: 1, y: 0, stagger: 0.08, duration: 0.8, ease: 'power3.out', scrollTrigger: { trigger: '[data-stage-card]', start: 'top 45%', once: true } });
   });
