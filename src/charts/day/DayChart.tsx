@@ -24,15 +24,15 @@ export interface DayLayout {
 export function layoutTracks(width: number, multiDay: boolean): DayLayout {
   const compact = width < 520;
   const hs: Record<TrackId, number> = compact
-    ? { bands: 18, g: 48, alloc: 112, soc: 44, pv: 48 }
-    : { bands: 20, g: 60, alloc: 140, soc: 52, pv: 60 };
+    ? { bands: 18, g: 48, alloc: 116, soc: 44, pv: 48 }
+    : { bands: 20, g: 60, alloc: 150, soc: 52, pv: 60 };
   const head = 24; // title line above each plot
   const order: TrackId[] = ['bands', 'g', 'alloc', 'soc', 'pv'];
   const tracks = {} as DayLayout['tracks'];
   let y = 0;
   for (const id of order) {
     tracks[id] = { y0: y + head, h: hs[id] };
-    y += head + hs[id];
+    y += head + hs[id] + 8;
   }
   const axisY = y + 4;
   return {
@@ -185,15 +185,15 @@ export const DayTracks = memo(function DayTracks({ model, width, domains }: Trac
       ) : (
         <g>
           <line
-            x1={plotR - (L.compact ? 92 : 150)}
-            x2={plotR - (L.compact ? 74 : 132)}
+            x1={plotL + 8}
+            x2={plotL + 26}
             y1={tracks.alloc.y0 + 9}
             y2={tracks.alloc.y0 + 9}
             stroke="var(--color-ink-2)"
             strokeWidth="1.5"
             strokeDasharray="4 3"
           />
-          <text x={plotR - (L.compact ? 68 : 126)} y={tracks.alloc.y0 + 9} dy="0.35em" fill="var(--color-ink-2)" {...TICK} style={{ ...HALO, strokeWidth: 3 }}>
+          <text x={plotL + 32} y={tracks.alloc.y0 + 9} dy="0.35em" fill="var(--color-ink-2)" {...TICK} style={{ ...HALO, strokeWidth: 3 }}>
             {L.compact ? 'Desikan: 0' : 'Desikan: tidak dipakai'}
           </text>
         </g>

@@ -98,15 +98,15 @@ export function RainPanel() {
         </Line>
         <Line n="4" title="Opsi">
           <p className="m-0">
-            <span className="inline-flex items-center gap-2">
-              <Evidence tag="simulasi" />
+            <span>
+              <Evidence tag="simulasi" />{' '}
               Tangki {TANK_FACTOR}× lebih besar: fraksi surya <span className="num text-ink">{formatId(f.bigTank.fraction * 100, 0)}%</span>, cadangan{' '}
               <Val v={f.bigTank.backupKWhTh} d={0} unit="kWh" kind="th" />.
             </span>
           </p>
           <p className="m-0 mt-2">
-            <span className="inline-flex flex-wrap items-center gap-x-2">
-              <Evidence tag="hipotesis" />
+            <span>
+              <Evidence tag="hipotesis" />{' '}
               Pompa kalor bersumber PV/T (riset): kondensor memasok <Val v={f.heatPump.condenserKWhTh} d={0} unit="kWh" kind="th" /> dengan kerja{' '}
               <Val v={f.heatPump.workKWhE} d={0} unit="kWh" kind="e" />, COP <span className="num text-ink">{formatId(f.heatPump.cop, 1)}</span>
               {f.heatPump.cop > 0 && f.heatPump.cop < hpCopBase ? (

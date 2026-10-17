@@ -22,9 +22,9 @@ function Row({ swatch, label, children }: { swatch: ReactNode; label: string; ch
 const Chip = ({ className }: { className: string }) => <span aria-hidden="true" className={`block size-2.5 shrink-0 rounded-[2px] ${className}`} />;
 
 /** The step at the playhead: one sentence (router reason), tank fill level, who supplies the hot water, PV. */
-export function StepReadout({ step, model }: { step: DayStep; model: DayModel }) {
+export function StepReadout({ step, model, hour }: { step: DayStep; model: DayModel; hour: number }) {
   const multi = model.tMax > 24;
-  const clock = clockLabel(step.t, model.tMax);
+  const clock = clockLabel(hour, model.tMax);
   const r = step.router;
   const cum = cumulativeAt(model, step.t);
   const collectorKW = step.collector.qLiquidW / 1000;
@@ -34,7 +34,7 @@ export function StepReadout({ step, model }: { step: DayStep; model: DayModel })
       <div className="flex items-baseline justify-between gap-3">
         <p className="num text-readout-l text-ink">
           {clock}
-          {multi ? <span className="ml-2 text-mono-s text-ink-2">hari {dayNumber(step.t)}</span> : null}
+          {multi ? <span className="ml-2 text-mono-s text-ink-2">hari {dayNumber(hour)}</span> : null}
         </p>
         <p className="inline-flex items-center gap-2 text-label text-ink">
           <ModeSwatch mode={r.mode} />

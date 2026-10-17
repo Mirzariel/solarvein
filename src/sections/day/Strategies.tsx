@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { LABELS, type AnnualResult, type AreaSweepPoint, type RouterStrategy } from '../../sim/system';
 import { useAreaSweep, useYear } from '../../state/systemSelectors';
 import { ChartCard } from '../../charts/ChartCard';
@@ -8,40 +9,70 @@ const STRATEGIES: readonly RouterStrategy[] = ['dhw-priority', 'fixed-schedule',
 const AREAS = [85, 170, 340];
 const EPS_KWH = 50; // below this a difference in annual kWh_th is not meaningful at this model's accuracy
 
+const N = ({ v }: { v: number }) => <span className="num text-ink">{formatId(v, 0)}</span>;
+const KT = () => (
+  <>
+    {' '}
+    kWh<sub className="text-[0.7em]">th</sub>
+  </>
+);
+
 /** Honest sentence about the three strategies, generated from the numbers (no default winner). */
-export function strategySentence(dhw: AnnualResult, fixed: AnnualResult, adaptive: AnnualResult): string {
+export function strategySentence(dhw: AnnualResult, fixed: AnnualResult, adaptive: AnnualResult): ReactNode {
   const dA = adaptive.totals.dhwSolarKWhTh - dhw.totals.dhwSolarKWhTh;
   const toDesiccant = adaptive.totals.desiccantRegenKWhTh;
   const fixedLoss = dhw.totals.dhwSolarKWhTh - fixed.totals.dhwSolarKWhTh;
   const tail =
-    fixedLoss > EPS_KWH
-      ? ` Jadwal tetap mengirim panas ke desikan tanpa menimbang nilainya dan kehilangan ${formatId(fixedLoss, 0)} kWh_th air panas per tahun.`
-      : '';
+    fixedLoss > EPS_KWH ? (
+      <>
+        {' '}
+        Jadwal tetap mengirim panas ke desikan tanpa menimbang nilainya dan kehilangan <N v={fixedLoss} />
+        <KT /> air panas per tahun.
+      </>
+    ) : null;
   if (Math.abs(dA) <= EPS_KWH && toDesiccant <= EPS_KWH) {
-    return `Pada skala ini Adaptif sama dengan Air panas dulu: pengatur menolak desikan karena nilainya lebih rendah.${tail}`;
+    return <>Pada skala ini Adaptif sama dengan Air panas dulu: pengatur menolak desikan karena nilainya lebih rendah.{tail}</>;
   }
   if (dA > EPS_KWH) {
-    return `Adaptif menambah ${formatId(dA, 0)} kWh_th air panas per tahun dibanding Air panas dulu, dan mengirim ${formatId(toDesiccant, 0)} kWh_th ke desikan.${tail}`;
+    return (
+      <>
+        Adaptif menambah <N v={dA} />
+        <KT /> air panas per tahun dibanding Air panas dulu, dan mengirim <N v={toDesiccant} />
+        <KT /> ke desikan.{tail}
+      </>
+    );
   }
-  return `Adaptif mengirim ${formatId(toDesiccant, 0)} kWh_th ke desikan dan memasok ${formatId(Math.abs(dA), 0)} kWh_th air panas lebih sedikit daripada Air panas dulu.${tail}`;
+  return (
+    <>
+      Adaptif mengirim <N v={toDesiccant} />
+      <KT /> ke desikan dan memasok <N v={Math.abs(dA)} />
+      <KT /> air panas lebih sedikit daripada Air panas dulu.{tail}
+    </>
+  );
 }
 
 /** Sentence for the area sweep. */
-export function areaSentence(points: AreaSweepPoint[]): string {
+export function areaSentence(points: AreaSweepPoint[]): ReactNode {
   const by = (a: number, s: RouterStrategy) => points.find((p) => p.areaM2 === a && p.strategy === s);
   const big = Math.max(...points.map((p) => p.areaM2));
   const bigAd = by(big, 'adaptive');
-  const bigDhw = by(big, 'dhw-priority');
-  if (!bigAd || !bigDhw) return '';
+  if (!bigAd) return null;
   const same = points.every((p) => {
     if (p.strategy !== 'adaptive') return true;
     const d = by(p.areaM2, 'dhw-priority');
     return !d || Math.abs(d.dhwSolarKWhThPerYear - p.dhwSolarKWhThPerYear) <= EPS_KWH;
   });
-  const unused = `Pada ${formatId(big, 0)} m² panas yang tidak terpakai mencapai ${formatId(bigAd.bypassKWhThPerYear, 0)} kWh_th per tahun`;
-  return same
-    ? `${unused}, tetapi Adaptif tetap tidak memilih desikan: surplus saja belum membuat desikan lebih bernilai daripada air panas.`
-    : `${unused}; di luas yang lebih besar Adaptif mulai berbeda dari Air panas dulu.`;
+  const unused = (
+    <>
+      Pada <N v={big} /> m² panas yang tidak terpakai mencapai <N v={bigAd.bypassKWhThPerYear} />
+      <KT /> per tahun
+    </>
+  );
+  return same ? (
+    <>{unused}, tetapi Adaptif tetap tidak memilih desikan: surplus saja belum membuat desikan lebih bernilai daripada air panas.</>
+  ) : (
+    <>{unused}; di luas yang lebih besar Adaptif mulai berbeda dari Air panas dulu.</>
+  );
 }
 
 function Bar({ frac, className, dashed }: { frac: number; className: string; dashed?: boolean }) {
@@ -70,7 +101,7 @@ export function Strategies() {
     <div className="mt-16 grid gap-x-12 gap-y-14 lg:mt-24 lg:grid-cols-2">
       <ChartCard
         title="Tiga strategi, satu tahun"
-        unit={<span className="inline-flex items-center gap-2"><Evidence tag="simulasi" /> kWh<sub>th</sub>/tahun</span>}
+        unit={<span className="inline-flex items-center gap-2"><Evidence tag="simulasi" /> <span>kWh<sub>th</sub>/tahun</span></span>}
         subtitle="Panas surya yang sampai ke air panas, dan berapa yang dikirim ke desikan."
         footer={strategySentence(dhw, fixed, adaptive)}
       >
@@ -107,7 +138,7 @@ export function Strategies() {
 
       <ChartCard
         title="Luas panel dan surplus"
-        unit={<span className="inline-flex items-center gap-2"><Evidence tag="simulasi" /> strategi Adaptif, kWh<sub>th</sub>/tahun</span>}
+        unit={<span className="inline-flex items-center gap-2"><Evidence tag="simulasi" /> <span>strategi Adaptif, kWh<sub>th</sub>/tahun</span></span>}
         subtitle="Pada luas besar, panas yang tidak terpakai (bypass) cepat bertambah."
         footer={areaSentence(sweep)}
       >

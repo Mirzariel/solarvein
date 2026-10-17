@@ -98,7 +98,7 @@ export function Scrubber({ model, width }: { model: DayModel; width: number }) {
         </svg>
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute top-1/2 block h-8 -translate-y-1/2 rounded-sm bg-ink"
+          className="pointer-events-none absolute top-1/2 block h-8 rounded-sm bg-ink"
           style={{ width: THUMB_W, left: -THUMB_W / 2, transform: `translate(${x}px, -50%)` }}
         >
           <span className="absolute inset-x-[5px] top-2 bottom-2 border-x border-paper/70" />

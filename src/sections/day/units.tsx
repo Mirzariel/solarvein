@@ -38,8 +38,12 @@ export function Val({
         {neg ? '−' : signed && pos ? '+' : ''}
         {body}
       </span>
-      {NBSP}
-      <Unit unit={unit} kind={kind} />
+      {unit ? (
+        <>
+          {NBSP}
+          <Unit unit={unit} kind={kind} />
+        </>
+      ) : null}
     </span>
   );
 }

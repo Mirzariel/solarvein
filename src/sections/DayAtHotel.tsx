@@ -34,6 +34,7 @@ export default function DayAtHotel() {
   const model = useDayModel(day);
   const clearModel = useDayModel(clearDay);
   const step = useStep();
+  const hour = useSystemStore((s) => s.hour);
   const year = useYear();
   const sys = useSystem();
 
@@ -157,7 +158,7 @@ export default function DayAtHotel() {
           </div>
 
           <aside className="col-span-12 min-w-0 self-start lg:sticky lg:top-[88px] lg:col-span-4" aria-label="Keadaan pada jam terpilih">
-            <StepReadout step={step} model={model} />
+            <StepReadout step={step} model={model} hour={hour} />
           </aside>
         </div>
 
