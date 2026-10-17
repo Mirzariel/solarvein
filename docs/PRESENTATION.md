@@ -43,7 +43,9 @@ Aturan agar tidak bentrok dengan kontrol:
 - Klik mouse pada tombol, radio, atau tab melepas fokusnya, sehingga `Spasi` dan panah tetap memindahkan adegan.
 - `Ctrl`, `Alt`, dan `Cmd` tidak pernah ditangkap (pintasan peramban tetap jalan).
 - Adegan = lompatan instan ke bagian atas seksi, atau ke pameran utamanya bila ditandai `data-presentasi-focus` (Sistem: panggung 3D dengan pemilih A/B/C tepat di bawah HUD). Di dalam adegan cadangan (5–9), ← dan → berpindah antar adegan cadangan.
-- Menggulir dengan tangan tetap sah: penghitung adegan ikut mengikuti posisi.
+- Menggulir dengan tangan (roda, sentuh, ↑/↓) tetap sah: penghitung adegan ikut mengikuti posisi. Setelah tombol aksi (adegan, A/B/C, R, L) penghitung adalah acuan dan tidak dihitung ulang dari posisi gulir sampai presenter menggulir sendiri.
+- Kondisi (`?skenario`, A/B/C) bertahan: lompatan melewati Cara kerja (yang mengatur A/B/C lewat gulir) dipulihkan; kondisi hanya berubah bila presenter menekan A/B/C atau R (atau mengubahnya di layar). Adegan 9 memulihkan kondisi sebelumnya saat ditinggalkan; menekan A/B/C atau R di adegan 9 keluar dari tampilan 72 jam dan penghitung pindah ke adegan 3.
+- `Home`/`0` dan lompatan adegan menghapus `#lab-rincian` dari URL.
 
 ## 3. Jalur demo, sekitar 3 menit
 
