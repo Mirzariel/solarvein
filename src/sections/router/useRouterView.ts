@@ -15,8 +15,8 @@ import type { ControllerMode, DayStep, RegenAirSource, RouterReason, RouterSnaps
 import { useStep, useSystem } from '../../state/systemSelectors';
 import { useSystemStore } from '../../state/system';
 
-/** Slab order of the four branches at the router, top to bottom (keeps S-curves from crossing). */
-export const SINK_ORDER: readonly Sink[] = ['bypass', 'dhw', 'tank', 'desiccant'];
+import { SINK_ORDER } from './layout';
+export { SINK_ORDER };
 
 const EARLY = ['soc', 'topC', 'outletC', 'irradiance', 'ambientC', 'rh', 'electricalW', 'potableOutC'] as const;
 const LATE = [
