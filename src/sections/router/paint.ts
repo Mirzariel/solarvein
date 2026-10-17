@@ -18,6 +18,7 @@ import { useSystemStore } from '../../state/system';
 import type { VisualFrame } from '../../motion';
 import { formatId } from '../../ui';
 import { diagramDescription } from './captions';
+import { getSceneScenario } from './scene';
 import { HX_DHW, OUT, PATHS, ROUTER, TANK, TRUNK_Y, W_TOT, branchPath, branchPoints, head, outputStrips, slabs, SINK_ORDER, E_Y, ROW, BYPASS_Y, DHW_Y, DRY, HX_REGEN } from './layout';
 import type { Palette } from './palette';
 import { budget, createPacketLoop, trackFromPair, trackFromPath, type PacketLoop, type PacketStream, type Track } from './usePackets';
@@ -66,7 +67,7 @@ export function stateFromFrame(f: VisualFrame, glide: Glider): PaintState | null
   const c = f.climate;
   if (!r || !c) return null;
   const st = useSystemStore.getState();
-  const day = getSystemView(st.sys).day(st.scenario, st.strategy);
+  const day = getSystemView(st.sys).day(getSceneScenario() ?? st.scenario, st.strategy);
   const step = stepAt(day, f.hour ?? st.hour);
   const hp = step.heatPump;
   const g = glide.update({
@@ -303,7 +304,8 @@ export function createPainter(svg: SVGSVGElement, P: Palette, stat: PaintStatic)
     // ── air ──
     op('desG', 0.3 + 0.7 * s.desOn);
     op('coilG', 0.35 + 0.65 * (1 - s.desOn));
-    const cool = s.mode === 'B';
+    // `cool` only when the desiccant actually supplies dried air; the ordinary coil's supply stays ink-2
+    const cool = s.desOn > 0.5;
     set('supply', 'stroke', cool ? P.cool : P.ink2);
     set('coilOut', 'stroke', cool ? P.coolInk : P.ink2);
     set('supplyHead', 'fill', cool ? P.cool : P.ink2);
@@ -373,4 +375,18 @@ export function createPainter(svg: SVGSVGElement, P: Palette, stat: PaintStatic)
       loop?.stop();
     },
   };
+}
+
+/** Equality guard for React state fed from engine frames: numbers within 0,2 %, everything else identical. */
+export function paintStateClose(a: PaintState | null, b: PaintState | null): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  for (const k of Object.keys(a) as (keyof PaintState)[]) {
+    const x = a[k];
+    const y = b[k];
+    if (typeof x === 'number' && typeof y === 'number') {
+      if (Math.abs(x - y) > 0.002 * Math.max(1, Math.abs(x))) return false;
+    } else if (x !== y) return false;
+  }
+  return true;
 }

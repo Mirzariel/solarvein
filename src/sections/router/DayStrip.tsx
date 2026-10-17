@@ -8,14 +8,16 @@
  */
 import { useId, useMemo, useRef } from 'react';
 import { useFrameListener } from '../../motion';
-import { LABELS, modeBands, type ModeBand } from '../../sim/system';
-import { useDay } from '../../state/systemSelectors';
+import { LABELS, modeBands, type DayResult, type DayScenarioId, type ModeBand } from '../../sim/system';
+import { useSystemStore } from '../../state/system';
+import { useSystemView } from '../../state/systemSelectors';
 import { PALETTES } from './palette';
 
 export const DAY_T0 = 5;
 export const DAY_T1 = 24;
 const FULL_W = 1280;
-const H = 86;
+const H_FULL = 86;
+const H_DENSE = 66;
 const xAt = (W: number, h: number): number => ((Math.min(DAY_T1, Math.max(DAY_T0, h)) - DAY_T0) / (DAY_T1 - DAY_T0)) * W;
 
 export const clock = (h: number): string => {
@@ -24,16 +26,19 @@ export const clock = (h: number): string => {
   return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
 };
 
-export function bandsOf(day: ReturnType<typeof useDay>): ModeBand[] {
+export function bandsOf(day: DayResult): ModeBand[] {
   return modeBands(day).filter((b) => b.t1 > DAY_T0 && b.t0 < DAY_T1);
 }
 
-export default function DayStrip({ onHour, className, compact }: { onHour: (h: number) => void; className?: string; compact?: boolean }) {
+export default function DayStrip({ scenario, onHour, className, compact, dense }: { scenario: DayScenarioId; onHour: (h: number) => void; className?: string; compact?: boolean; dense?: boolean }) {
+  const H = dense ? H_DENSE : H_FULL;
+  const sysView = useSystemView();
+  const strategy = useSystemStore((s) => s.strategy);
   const W = compact ? 360 : FULL_W;
   const x = (h: number) => xAt(W, h);
   const P = PALETTES.page;
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
-  const day = useDay();
+  const day = useMemo(() => sysView.day(scenario, strategy), [sysView, scenario, strategy]);
   const head = useRef<SVGGElement>(null);
   const label = useRef<SVGTextElement>(null);
   const input = useRef<HTMLInputElement>(null);
@@ -41,12 +46,13 @@ export default function DayStrip({ onHour, className, compact }: { onHour: (h: n
   const { curve, area, bands, peak } = useMemo(() => {
     const steps = day.steps.filter((s) => s.t >= DAY_T0 - 0.25 && s.t <= DAY_T1 + 0.25);
     const gMax = Math.max(1, ...day.steps.map((s) => s.climate.irradiance));
-    const y = (g: number) => 46 - (g / gMax) * 22;
+    const base = dense ? 28 : 46;
+    const y = (g: number) => base - (g / gMax) * (dense ? 16 : 22);
     const pts = steps.map((s) => `${x(s.t).toFixed(1)},${y(s.climate.irradiance).toFixed(1)}`);
     const line = `M${pts.join(' L')}`;
-    return { curve: line, area: `${line} L${x(DAY_T1)},46 L${x(DAY_T0)},46 Z`, bands: bandsOf(day), peak: Math.round(gMax) };
+    return { curve: line, area: `${line} L${x(DAY_T1)},${dense ? 28 : 46} L${x(DAY_T0)},${dense ? 28 : 46} Z`, bands: bandsOf(day), peak: Math.round(gMax) };
       // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [day, W]);
+  }, [day, W, dense]);
 
   useFrameListener((f) => {
     const h = f.hour ?? DAY_T0;
@@ -78,7 +84,7 @@ export default function DayStrip({ onHour, className, compact }: { onHour: (h: n
         <path d={area} fill={P.lineStrong} opacity={0.45} />
         <path d={curve} fill="none" stroke={P.ink} strokeWidth={1} />
         {compact ? null : (
-          <text x={2} y={22} fontFamily={P.mono} fontSize={12} fill={P.ink3}>
+          <text x={2} y={dense ? 24 : 38} fontFamily={P.mono} fontSize={13} fill={P.ink3}>
             G puncak {peak} W/m²
           </text>
         )}
@@ -88,9 +94,9 @@ export default function DayStrip({ onHour, className, compact }: { onHour: (h: n
           const fill = b.mode === 'A' ? P.heat : b.mode === 'B' ? `url(#${uid}hatch)` : P.ink3;
           return (
             <g key={`${b.mode}${b.t0}`}>
-              <rect x={x0} y={50} width={Math.max(0, x1 - x0)} height={14} fill={fill} opacity={b.mode === 'C' ? 0.35 : 1} />
+              <rect x={x0} y={dense ? 32 : 50} width={Math.max(0, x1 - x0)} height={14} fill={fill} opacity={b.mode === 'C' ? 0.35 : 1} />
               {x1 - x0 > 22 ? (
-                <text x={(x0 + x1) / 2} y={61} textAnchor="middle" fontFamily={P.mono} fontSize={12} fontWeight={500} fill={b.mode === 'C' ? P.ink : P.ink}>
+                <text x={(x0 + x1) / 2} y={dense ? 43 : 61} textAnchor="middle" fontFamily={P.mono} fontSize={13} fontWeight={500} fill={b.mode === 'C' ? P.ink : P.ink}>
                   {b.mode}
                 </text>
               ) : null}
@@ -99,15 +105,15 @@ export default function DayStrip({ onHour, className, compact }: { onHour: (h: n
         })}
         {ticks.map((t) => (
           <g key={t}>
-            <path d={`M${x(t)},64 v4`} stroke={P.tick} strokeWidth={1} />
-            <text x={x(t)} y={82} textAnchor={t === DAY_T1 ? 'end' : 'middle'} fontFamily={P.mono} fontSize={12} fill={P.ink3}>
+            <path d={`M${x(t)},${dense ? 46 : 64} v4`} stroke={P.tick} strokeWidth={1} />
+            <text x={x(t)} y={dense ? 63 : 82} textAnchor={t === DAY_T1 ? 'end' : 'middle'} fontFamily={P.mono} fontSize={13} fill={P.ink3}>
               {String(t % 24).padStart(2, '0')}
             </text>
           </g>
         ))}
         <g ref={head} transform={`translate(${x(DAY_T0)} 0)`}>
-          <path d="M0,18 V66" stroke={P.ink} strokeWidth={1.5} />
-          <text ref={label} x={0} y={12} fontFamily={P.mono} fontSize={13} fontWeight={500} fill={P.ink} style={{ paintOrder: 'stroke', stroke: P.paper, strokeWidth: 3.5 }}>
+          <path d={`M0,${dense ? 14 : 18} V${dense ? 48 : 66}`} stroke={P.ink} strokeWidth={1.5} />
+          <text ref={label} x={0} y={dense ? 10 : 12} fontFamily={P.mono} fontSize={14} fontWeight={500} fill={P.ink} style={{ paintOrder: 'stroke', stroke: P.paper, strokeWidth: 3.5 }}>
             {clock(DAY_T0)}
           </text>
         </g>
@@ -119,7 +125,7 @@ export default function DayStrip({ onHour, className, compact }: { onHour: (h: n
         max={DAY_T1}
         step={0.25}
         defaultValue={DAY_T0}
-        aria-label={`Jam dalam sehari, ${LABELS.scenario[day.scenario]}`}
+        aria-label={`Jam dalam sehari, ${LABELS.scenario[scenario]}`}
         onInput={(e) => onHour(Number((e.target as HTMLInputElement).value))}
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', margin: 0, opacity: 0, cursor: 'ew-resize' }}
       />

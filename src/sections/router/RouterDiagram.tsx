@@ -37,7 +37,7 @@ export interface RouterDiagramProps {
 }
 
 function Tx({
-  x, y, children, anchor = 'start', mono, size = 12, fill, weight, halo, opacity, id, P,
+  x, y, children, anchor = 'start', mono, size = 13.5, fill, weight, halo, opacity, id, P,
 }: {
   x: number; y: number; children?: ReactNode; anchor?: 'start' | 'middle' | 'end'; mono?: boolean; size?: number;
   fill: string; weight?: number; halo?: boolean; opacity?: number; id?: string; P: Palette;
@@ -60,7 +60,7 @@ const Unit = ({ u, sub, P }: { u: string; sub: string; P: Palette }) => (
   <tspan fontFamily={P.mono}>
     {' '}
     {u}
-    <tspan dy={3} fontSize={9}>{sub}</tspan>
+    <tspan dy={3} fontSize={10.5}>{sub}</tspan>
     <tspan dy={-3} fontSize={0}>{'​'}</tspan>
   </tspan>
 );
@@ -174,7 +174,7 @@ export default function RouterDiagram({ layers, tone = 'page', electricalRefW, m
             d={`M${COLLECTOR.x},${COLLECTOR.y + 37} H${COLLECTOR.x + COLLECTOR.w} M${COLLECTOR.x},${COLLECTOR.y + 75} H${COLLECTOR.x + COLLECTOR.w} M${COLLECTOR.x},${COLLECTOR.y + 112} H${COLLECTOR.x + COLLECTOR.w} ${[1, 2, 3, 4, 5].map((i) => `M${COLLECTOR.x + (COLLECTOR.w / 6) * i},${COLLECTOR.y} V${COLLECTOR.y + COLLECTOR.h}`).join(' ')}`}
             stroke={P.lineStrong} strokeWidth={1} fill="none"
           />
-          <Tx x={COLLECTOR.x} y={COLLECTOR.y - 10} size={13} fill={P.ink} P={P}>Panel PV/T</Tx>
+          <Tx x={COLLECTOR.x} y={COLLECTOR.y - 10} size={14.5} fill={P.ink} P={P}>Panel PV/T</Tx>
           <Tx x={COLLECTOR.x + 8} y={COLLECTOR.y + 24} mono fill={P.ink} halo P={P}>G <V id="G" P={P} /> W/m²</Tx>
 
           {/* trunk: neutral hairline when the pump is off, amber band when on */}
@@ -243,7 +243,7 @@ export default function RouterDiagram({ layers, tone = 'page', electricalRefW, m
           </g>
           <path d={`M${OUT.x1 + 6},${OUT.yc - 24} V${OUT.yc + 24}`} stroke={P.ink} strokeWidth={1} />
           <Tx x={OUT.x0 + 10} y={OUT.yc - 22} fill={P.ink2} P={P}>air keluar <V id="potV" P={P} /> °C</Tx>
-          <Tx x={COL_X} y={OUT.yc - 30} size={13} fill={P.ink} P={P}>Air panas hotel</Tx>
+          <Tx x={COL_X} y={OUT.yc - 30} size={14.5} fill={P.ink} P={P}>Air panas hotel</Tx>
           {colTx('dirV', OUT.yc - 8, 'langsung', P.heat, 1)}
           {colTx('disV', OUT.yc + 10, 'dari tangki', P.heat, 0.55)}
           {colTx('bakV', OUT.yc + 28, 'pemanas cadangan', P.ink2, 1)}
@@ -264,7 +264,7 @@ export default function RouterDiagram({ layers, tone = 'page', electricalRefW, m
             <Unit u="kW" sub="e" P={P} />
           </Tx>
           <path d={`M${OUT.x1 + 6},${E_Y - 8} V${E_Y + 8}`} stroke={P.ink} strokeWidth={1} />
-          <Tx x={COL_X} y={E_Y + 4} size={13} fill={P.ink} P={P}>Beban hotel</Tx>
+          <Tx x={COL_X} y={E_Y + 4} size={14.5} fill={P.ink} P={P}>Beban hotel</Tx>
         </Lyr>
 
         {/* ───────────── Udara ───────────── */}
@@ -307,7 +307,7 @@ export default function RouterDiagram({ layers, tone = 'page', electricalRefW, m
           <path data-flow="supply" data-p="supply" d={PATHS.supply} fill="none" stroke={P.ink2} strokeWidth={2.5} />
           <path data-p="supplyHead" d={`M${OUT.x1 - 1},${ROW.proc - 6} L${OUT.x1 + 8},${ROW.proc} L${OUT.x1 - 1},${ROW.proc + 6} Z`} fill={P.ink2} />
           <path d={`M${OUT.x1 + 6},${ROW.proc - 16} V${ROW.proc + 16}`} stroke={P.ink} strokeWidth={1} />
-          <Tx x={COL_X} y={ROW.proc - 2} size={13} fill={P.ink} P={P}>Udara pasok</Tx>
+          <Tx x={COL_X} y={ROW.proc - 2} size={14.5} fill={P.ink} P={P}>Udara pasok</Tx>
           <Tx x={COL_X} y={ROW.proc + 15} mono fill={P.ink2} P={P}>titik embun <V id="dewV" P={P} fill={P.ink2} /> °C</Tx>
         </Lyr>
 
@@ -321,8 +321,8 @@ export default function RouterDiagram({ layers, tone = 'page', electricalRefW, m
         {isPaper ? (
           <g>
             <path d={`M8,${VB.h + 6} H${VB.w - 8}`} stroke={P.lineStrong} strokeWidth={1} />
-            <Tx x={8} y={VB.h + 22} mono size={11} fill={P.ink2} P={P}>{exportNote ?? 'SolarVein · simulasi, belum ada data ukur'}</Tx>
-            <Tx x={VB.w - 8} y={VB.h + 22} anchor="end" mono size={11} fill={P.ink2} P={P}>Putus-putus: hipotesis riset, belum divalidasi</Tx>
+            <Tx x={8} y={VB.h + 22} mono size={12} fill={P.ink2} P={P}>{exportNote ?? 'SolarVein · simulasi, belum ada data ukur'}</Tx>
+            <Tx x={VB.w - 8} y={VB.h + 22} anchor="end" mono size={12} fill={P.ink2} P={P}>Putus-putus: hipotesis riset, belum divalidasi</Tx>
           </g>
         ) : null}
       </svg>
