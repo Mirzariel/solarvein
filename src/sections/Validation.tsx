@@ -1,4 +1,3 @@
-import { ChartCard } from '../charts/ChartCard';
 import { Disclosure, SectionHeader } from '../ui';
 import { EvidenceLegend } from './validation/EvidenceLegend';
 import { Kpis } from './validation/Kpis';
@@ -7,8 +6,8 @@ import { Risks } from './validation/Risks';
 import { Roadmap } from './validation/Roadmap';
 
 /**
- * 08 Validasi: what still has to be measured. Five phases, KPIs with today's simulated value, ranked risks,
- * the evidence legend, the concept-evolution note, the essay/website note and the reference list (#pustaka).
+ * 08 Validasi: what could refute SolarVein. Five phases, six ranked risks (compact rows), the KPIs behind a
+ * disclosure, a one-line evidence legend, the essay/website note, the concept-evolution note and the reference list (#pustaka).
  */
 export default function Validation() {
   return (
@@ -17,41 +16,27 @@ export default function Validation() {
         <SectionHeader
           id="validasi-judul"
           index={{ n: '08', label: 'Validasi' }}
-          title="Yang masih harus diukur."
-          lead="Semua angka di bagian ini: hasil simulasi. Belum ada data ukur; lima fase di bawah menggantinya satu per satu."
+          title="Yang bisa membantah SolarVein"
+          lead="Tiap risiko punya angka simulasi sekarang dan percobaan yang mengujinya."
         />
 
         <div className="mt-12 lg:mt-16">
           <Roadmap />
         </div>
 
-        <div className="mt-16 lg:mt-24">
-          <ChartCard title="Indikator kinerja" subtitle="Nilai simulasi hari ini, dan fase yang mengukurnya.">
-            <Kpis />
-          </ChartCard>
-        </div>
-
-        <div className="mt-16 lg:mt-24">
-          <ChartCard title="Risiko teknis, berurutan" subtitle="Urutan adalah penilaian pengembang atas dampak dan kemungkinan, bukan hasil hitung.">
-            <Risks />
-          </ChartCard>
-        </div>
-
-        <div className="mt-16 lg:mt-24">
-          <ChartCard title="Tanda bukti" subtitle="Bentuk titik menunjukkan jenis bukti di balik tiap angka; warna tidak dipakai.">
-            <EvidenceLegend />
-          </ChartCard>
-        </div>
-
-        <div className="mt-16 max-w-4xl border-t border-line pt-5 lg:mt-24">
-          <h3 className="m-0 text-body font-medium text-ink">Catatan versi</h3>
-          <p className="m-0 mt-2 max-w-[64ch] text-body text-ink-2">
-            Situs ini adalah versi pengembangan dari karya HORIZON 2026. Angkanya bisa berbeda dari esai yang dikirim. Selisih dengan esai: lihat catatan presentasi.
-          </p>
+        <div className="mt-14 lg:mt-20">
+          <h3 className="m-0 mb-1 text-h3 text-ink">Risiko teknis, berurutan</h3>
+          <p className="m-0 mb-4 max-w-[64ch] text-small text-ink-2">Urutan adalah penilaian pengembang atas dampak dan kemungkinan, bukan hasil hitung.</p>
+          <Risks />
         </div>
 
         <div className="mt-12 max-w-4xl">
-          <Disclosure title="Evolusi ide" hint="Dari Cerah dan Hujan ke perutean panas">
+          <Disclosure title="Indikator kinerja">
+            <div className="w-[min(40rem,calc(100vw-2rem))]">
+              <Kpis />
+            </div>
+          </Disclosure>
+          <Disclosure title="Evolusi ide">
             <p className="m-0">
               Rancangan awal memakai satu panel dengan dua mode: Cerah mengumpulkan panas, Hujan membuang panas dari loop hangat. Mode Hujan dilepas karena panas buangan bukan listrik yang dihemat, dan hujan tetap membawa cahaya sebaran sehingga panel tidak pernah benar-benar mati.
               Yang terbawa ke rancangan sekarang adalah fisika perpindahan panas panel (konveksi, radiasi ke langit, hujan) dan satu gagasan: PV/T sebagai sumber pompa kalor saat malam dan hujan, kini jalur riset yang kemungkinan marginal dibanding B2.
@@ -59,6 +44,14 @@ export default function Validation() {
             </p>
           </Disclosure>
           <References />
+        </div>
+
+        <div className="mt-12 max-w-4xl">
+          <EvidenceLegend />
+          <p className="m-0 mt-6 max-w-[64ch] text-small text-ink-2">
+            <span className="text-ink">Catatan versi. </span>
+            Situs ini adalah versi pengembangan dari karya HORIZON 2026. Angkanya bisa berbeda dari esai yang dikirim. Selisih dengan esai: lihat catatan presentasi.
+          </p>
         </div>
       </div>
     </section>

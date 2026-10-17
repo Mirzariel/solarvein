@@ -31,7 +31,7 @@ function Matrix({ id, name }: { id: BaselineId; name: string }) {
   const sys = useSystem();
   return (
     <div className="min-w-0">
-      <p className="m-0 text-label text-ink">Bersih vs {name}, t CO₂e/tahun</p>
+      <p className="m-0 text-label text-ink">Bersih terhadap {name}, t CO₂e/tahun</p>
       <table className="num mt-2 w-full border-collapse text-mono-s">
         <thead>
           <tr className="text-mono-label text-ink-3">

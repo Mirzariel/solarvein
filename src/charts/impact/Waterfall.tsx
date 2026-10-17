@@ -10,6 +10,7 @@ interface Step {
   key: string;
   kind: StepKind;
   label: string;
+  full?: string;
   kg: number;
   from: number;
   to: number;
@@ -27,6 +28,31 @@ export function Subs({ text }: { text: string }): ReactNode {
       {parts.map((p, i) => (i % 2 === 1 ? <sub key={i} className="text-[0.7em]">{p}</sub> : <Fragment key={i}>{p}</Fragment>))}
     </>
   );
+}
+
+/** Short display labels (glossary: "panas surya"); the sim's full label stays in the title attribute. */
+function shortLabel(r: LedgerRow, baselineId: string): string {
+  const b1 = baselineId === 'B1';
+  switch (r.id) {
+    case 'listrik-pv':
+      return b1 ? 'Listrik PV/T' : 'Selisih listrik PV/T';
+    case 'kalor-air-panas':
+      return b1 ? 'Panas surya untuk air panas' : 'Selisih air panas';
+    case 'parasit':
+      return 'Listrik pompa dan pengendali';
+    case 'tertanam-pvt':
+      return 'Emisi tertanam: panel PV/T';
+    case 'tertanam-bos':
+      return 'Emisi tertanam: router dan tangki';
+    case 'tertanam-pv':
+      return 'Emisi tertanam: PV standar (pembanding)';
+    case 'tertanam-hpwh':
+      return 'Emisi tertanam: pompa kalor (pembanding)';
+    case 'tertanam-kit':
+      return 'Emisi tertanam: kit kondensor (pembanding)';
+    default:
+      return r.label.replace(/kalor surya/g, 'panas surya');
+  }
 }
 
 const digitsFor = (v: number): number => (Math.abs(v) >= 100 ? 0 : Math.abs(v) >= 10 ? 1 : Math.abs(v) >= 1 ? 2 : 3);
@@ -55,10 +81,9 @@ function factorOf(row: LedgerRow): ReactNode {
   );
 }
 
-function buildSteps(ledger: CarbonLedger): { steps: Step[]; excluded: LedgerRow[]; standby: LedgerRow[]; lo: number; hi: number } {
+function buildSteps(ledger: CarbonLedger): { steps: Step[]; excluded: LedgerRow[]; lo: number; hi: number } {
   const head = ledger.rows.filter((r) => !r.excludedFromHeadline);
   const excluded = ledger.rows.filter((r) => r.excludedFromHeadline);
-  const standby = head.filter((r) => r.kind === 'standby');
   const steps: Step[] = [];
   let cum = 0;
   const push = (r: LedgerRow, kind: StepKind) => {
@@ -66,7 +91,8 @@ function buildSteps(ledger: CarbonLedger): { steps: Step[]; excluded: LedgerRow[
     steps.push({
       key: r.id,
       kind,
-      label: r.label,
+      label: shortLabel(r, ledger.baselineId),
+      full: r.label,
       kg: r.kgPerYear,
       from: cum,
       to: cum + r.kgPerYear,
@@ -86,7 +112,7 @@ function buildSteps(ledger: CarbonLedger): { steps: Step[]; excluded: LedgerRow[
   const lo = Math.min(...levels);
   const hi = Math.max(...levels);
   const pad = (hi - lo) * 0.03 || 1;
-  return { steps, excluded, standby, lo: lo < 0 ? lo - pad : 0, hi: hi + pad };
+  return { steps, excluded, lo: lo < 0 ? lo - pad : 0, hi: hi + pad };
 }
 
 const TONE: Record<Tone, string> = {
@@ -104,7 +130,7 @@ const TONE: Record<Tone, string> = {
  * Bars move with transform only; they grow one after another when the figure scrolls into view
  * (reduced motion: static). No odometer.
  */
-export function Waterfall({ ledger, baselineName, lifetimeYears }: { ledger: CarbonLedger; baselineName: string; lifetimeYears: number }) {
+export function Waterfall({ ledger, baselineName, showLabels = true }: { ledger: CarbonLedger; baselineName: string; /** Kept for existing callers (export figure); unused since the caption moved into Dampak. */ lifetimeYears?: number; /** Show the evidence label text at first use (default); false = dots only. */ showLabels?: boolean }) {
   const reduced = useReducedMotion();
   const ref = useRef<HTMLElement>(null);
   const [built, setBuilt] = useState(false);
@@ -128,7 +154,7 @@ export function Waterfall({ ledger, baselineName, lifetimeYears }: { ledger: Car
     return () => io.disconnect();
   }, [reduced]);
 
-  const { steps, excluded, standby, lo, hi } = useMemo(() => buildSteps(ledger), [ledger]);
+  const { steps, excluded, lo, hi } = useMemo(() => buildSteps(ledger), [ledger]);
   const span = hi - lo;
   const pct = (v: number) => (v - lo) / span;
   const zero = pct(0) * 100;
@@ -138,6 +164,7 @@ export function Waterfall({ ledger, baselineName, lifetimeYears }: { ledger: Car
     <figure
       ref={ref}
       data-export="kpi-baselines"
+      data-presentasi-focus
       data-built={built ? 'true' : 'false'}
       className={cx('waterfall m-0', reduced && 'waterfall-static')}
       aria-label={`Aliran emisi CO₂e per tahun, SolarVein dibanding ${baselineName}`}
@@ -149,7 +176,7 @@ export function Waterfall({ ledger, baselineName, lifetimeYears }: { ledger: Car
           const l = pct(a);
           const w = Math.max(pct(b) - l, 0.004);
           const total = s.kind === 'gross' || s.kind === 'net';
-          const showLabel = s.tag && !seen.has(s.tag);
+          const showLabel = showLabels && s.tag && !seen.has(s.tag);
           if (s.tag) seen.add(s.tag);
           return (
             <li
@@ -161,7 +188,7 @@ export function Waterfall({ ledger, baselineName, lifetimeYears }: { ledger: Car
             >
               <div className="flex min-w-0 items-start justify-between gap-4 lg:block">
                 <div className="min-w-0">
-                  <p className={cx('m-0 text-body', total ? 'font-medium text-ink' : 'text-ink')}>
+                  <p className={cx('m-0 text-body', total ? 'font-medium text-ink' : 'text-ink')} title={s.full}>
                     {s.label}
                     {s.tag ? (
                       <span className="ml-2 align-baseline">
@@ -194,23 +221,16 @@ export function Waterfall({ ledger, baselineName, lifetimeYears }: { ledger: Car
         })}
       </ol>
       <figcaption className="mt-3 max-w-[68ch] text-small text-ink-2">
-        kgCO₂e per tahun. Plus = emisi dihindari dibanding {baselineName}; minus = emisi yang ditambahkan. Emisi tertanam dibagi umur pakai{' '}
-        <span className="num">{formatId(lifetimeYears, 0)}</span> tahun.
-        {standby.map((r) => (
-          <span key={r.id}>
-            {' '}
-            Rugi diam tangki <span className="num">{formatId(r.energy?.kWhTh ?? 0, 0)}</span> kWh<sub>th</sub> sudah ada di dalam kalor surya terpakai, jadi tidak dihitung dua kali.
-          </span>
-        ))}
+        kgCO₂e per tahun, dibanding {baselineName}. Plus = dihindari, minus = ditambahkan.
       </figcaption>
       {excluded.length > 0 ? (
         <ul className="m-0 mt-5 list-none border-t border-dashed border-line-strong p-0 pt-3">
           {excluded.map((r) => (
             <li key={r.id} className="flex items-baseline justify-between gap-4 py-1 text-small text-ink-2">
               <span className="flex min-w-0 items-baseline gap-2">
-                <EvidenceDot tag="hipotesis" className="translate-y-px" />
+                <EvidenceDot tag="hipotesis" />
                 <span>
-                  {r.label}
+                  {r.id === 'desikan-hvac' ? 'Desikan: hemat listrik AC' : 'Desikan: emisi tertanam'}
                   <span className="text-ink-3"> · tidak dihitung · hipotesis</span>
                 </span>
               </span>
