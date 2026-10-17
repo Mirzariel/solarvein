@@ -1,20 +1,46 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ButtonLink, Logo, cx } from '../ui';
+import { SIM_BADGE } from '../sim/system';
+import { ButtonLink, EvidenceDot, Logo, cx } from '../ui';
+import { scrollToTarget } from '../motion';
+import { SECTIONS, resolveHash } from './nav';
 
 /**
  * Header: transparan di atas foto pembuka (#awal), lalu kertas padat setelah gulir (transisi halus).
- * Tautan: Pengalaman · Di dalam · Dampak · Lab · Perbandingan. Garis bawah geser mengikuti bagian aktif.
- * Scroll-spy memakai posisi (bukan IntersectionObserver) agar bagian yang dimuat malas tetap terdeteksi.
+ * Tautan dan urutannya dari nav.ts (SECTIONS dengan nav: true); tombol Lab di kanan; lencana "Simulasi · belum ada data ukur"
+ * selalu terlihat (lengkap di layar lebar, ringkas di layar sempit). Garis bawah geser mengikuti bagian aktif.
+ * Scroll-spy memakai posisi (bukan IntersectionObserver) agar bagian yang dimuat malas tetap terdeteksi; bagian tanpa
+ * tautan (Di dalam kolektor, Jeda, Desikan) menyorot tautan terdekat di atasnya, Lab menyorot tombol Lab.
  */
-const NAV = [
-  { id: 'pengalaman', label: 'Pengalaman' },
-  { id: 'di-dalam', label: 'Di dalam' },
-  { id: 'dampak', label: 'Dampak' },
-  { id: 'lab', label: 'Lab' },
-  { id: 'perbandingan', label: 'Perbandingan' },
-] as const;
+const NAV = SECTIONS.filter((s) => s.nav);
 
 const HEADER_H = 56;
+
+/** Active nav id for the section order: the last section whose top passed the reading line. */
+function readActive(vh: number): string {
+  let cur = '';
+  for (const s of SECTIONS) {
+    const el = document.getElementById(s.id);
+    if (!el || el.getBoundingClientRect().top > vh * 0.38) continue;
+    if (s.nav || s.id === 'lab') cur = s.id;
+    else if (s.id === 'awal' || s.id === 'penutup') cur = '';
+  }
+  return cur;
+}
+
+/** Permanent badge: every number on the site is simulated. Dot shape = simulation (half-filled). */
+function SimBadge({ className }: { className?: string }) {
+  return (
+    <span className={cx('inline-flex items-center gap-2 text-label text-ink-2', className)} title={SIM_BADGE} aria-label={SIM_BADGE}>
+      <EvidenceDot tag="simulasi" />
+      <span aria-hidden="true" className="hidden xl:inline">
+        {SIM_BADGE}
+      </span>
+      <span aria-hidden="true" className="xl:hidden">
+        Simulasi
+      </span>
+    </span>
+  );
+}
 
 export default function SiteHeader() {
   const [open, setOpen] = useState(false);
@@ -32,12 +58,7 @@ export default function SiteHeader() {
     const read = () => {
       raf = 0;
       const vh = window.innerHeight;
-      let cur = '';
-      for (const n of NAV) {
-        const el = document.getElementById(n.id);
-        if (el && el.getBoundingClientRect().top <= vh * 0.38) cur = n.id;
-      }
-      setActive(cur);
+      setActive(readActive(vh));
       const opening = document.getElementById('awal');
       // Transparan hanya di puncak halaman (scrollY ≤ 64) selama foto pembuka ada; lalu kertas padat.
       setOverPhoto(opening ? window.scrollY <= 64 && opening.getBoundingClientRect().bottom > HEADER_H : false);
@@ -58,6 +79,25 @@ export default function SiteHeader() {
       ro?.disconnect();
       if (raf) cancelAnimationFrame(raf);
     };
+  }, []);
+
+  // Old v1 deep links (#pengalaman, #di-dalam, #perbandingan, #lab-rincian) land on their v2 section.
+  useEffect(() => {
+    const raw = decodeURIComponent(window.location.hash.slice(1));
+    const target = resolveHash(raw);
+    if (!raw || target === raw) return;
+    let tries = 0;
+    const id = window.setInterval(() => {
+      const el = document.getElementById(target);
+      if (el || ++tries > 20) {
+        window.clearInterval(id);
+        if (el) {
+          history.replaceState(null, '', '#' + target);
+          scrollToTarget(el, { immediate: true });
+        }
+      }
+    }, 250);
+    return () => window.clearInterval(id);
   }, []);
 
   // Sliding underline under the active desktop link.
@@ -114,7 +154,7 @@ export default function SiteHeader() {
           <Logo className="text-[17px] text-ink" />
         </a>
 
-        <nav ref={navRef} aria-label="Navigasi utama" className="relative hidden items-center gap-1 md:flex">
+        <nav ref={navRef} aria-label="Navigasi utama" className="relative hidden items-center gap-1 lg:flex">
           {NAV.map((n) => {
             const on = active === n.id;
             return (
@@ -145,17 +185,22 @@ export default function SiteHeader() {
           />
         </nav>
 
-        <div className="flex items-center gap-3">
-          {active !== 'pengalaman' ? (
-            <ButtonLink href="#pengalaman" variant="primary" size="sm" className="max-lg:hidden text-surface!">
-              Coba simulasinya
-            </ButtonLink>
-          ) : null}
+        <div className="flex items-center gap-4">
+          <SimBadge />
+          <ButtonLink
+            href="#lab"
+            variant="secondary"
+            size="sm"
+            aria-current={active === 'lab' ? 'location' : undefined}
+            className={cx('max-lg:hidden', active === 'lab' && 'bg-sunken')}
+          >
+            Lab
+          </ButtonLink>
           <button
             ref={btnRef}
             type="button"
             className={cx(
-              '-mr-3 inline-flex min-h-11 items-center rounded-sm px-3 text-button transition-colors duration-[220ms] md:hidden',
+              '-mr-3 inline-flex min-h-11 items-center rounded-sm px-3 text-button transition-colors duration-[220ms] lg:hidden',
               solid ? 'text-ink hover:text-ink-2' : 'text-white hover:text-white/80',
             )}
             aria-expanded={open}
@@ -171,7 +216,7 @@ export default function SiteHeader() {
         id="menu-mobile"
         aria-label="Navigasi utama (seluler)"
         hidden={!open}
-        className="border-t border-line bg-paper text-ink md:hidden"
+        className="border-t border-line bg-paper text-ink lg:hidden"
       >
         <ul className="page-wrap m-0 list-none py-2">
           {NAV.map((n) => (
@@ -189,6 +234,20 @@ export default function SiteHeader() {
               </a>
             </li>
           ))}
+          <li>
+            <a
+              href="#lab"
+              aria-current={active === 'lab' ? 'location' : undefined}
+              onClick={() => setOpen(false)}
+              className={cx(
+                'flex min-h-12 items-center rounded-sm px-3 py-3 text-prose transition-colors duration-[150ms]',
+                active === 'lab' ? 'bg-sunken text-ink' : 'text-ink-2 hover:text-ink',
+              )}
+            >
+              Lab
+            </a>
+          </li>
+          <li className="px-3 py-3 text-small text-ink-2">{SIM_BADGE}</li>
         </ul>
       </nav>
     </header>

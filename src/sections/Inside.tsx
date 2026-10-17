@@ -1,12 +1,13 @@
 import { useMemo, useRef } from 'react';
 import { useMediaQuery, useWebGLAvailable } from '../hooks';
 import { ScrollTrigger, useScrollScene } from '../motion';
-import { useSimResult } from '../state/selectors';
+import { SISTEM_DALAM } from '../content/sistem';
 import { SectionIndex, cx } from '../ui';
-import { PARTS, partValue, type PartId } from '../viz3d/parts';
+import { PARTS, type PartId } from '../viz3d/parts';
 import { createStageStore, useStageState } from '../viz3d/stage';
 import CollectorStage from '../viz3d/CollectorStage';
 import { PartList } from './inside/PartList';
+import { usePartValue } from './inside/usePartValue';
 
 /**
  * 02 - Di dalam SolarVein: the page steps into the product. A graphite chapter rises over the paper with rounded
@@ -21,7 +22,7 @@ export default function Inside() {
   const wide = useMediaQuery('(min-width: 1024px)', true);
   const sm = useMediaQuery('(min-width: 640px)', true);
   const focus = useStageState(store, (s) => s.focusPart);
-  const result = useSimResult();
+  const valueOf = usePartValue();
   const root = useRef<HTMLElement>(null);
   const reduce = useMediaQuery('(prefers-reduced-motion: reduce)', false);
   const scrolly = wide && webgl !== false && !reduce;
@@ -35,7 +36,7 @@ export default function Inside() {
       const st = ScrollTrigger.create({
         trigger: '[data-pin]',
         start: 'top top',
-        end: '+=260%',
+        end: '+=200%',
         pin: true,
         pinSpacing: true,
         anticipatePin: 1,
@@ -63,23 +64,23 @@ export default function Inside() {
   return (
     <section
       ref={root}
-      id="di-dalam"
-      aria-labelledby="di-dalam-title"
+      id="sistem-dalam"
+      aria-labelledby="sistem-dalam-title"
       className="relative z-10 -mt-10 scroll-mt-14 rounded-t-[32px] bg-stage-0 text-stage-ink shadow-[0_-40px_80px_-40px_rgb(17_18_20/0.35)] lg:-mt-16 lg:rounded-t-[48px]"
     >
       <div data-pin className={cx('page-wrap', scrolly ? 'flex h-svh items-center py-20' : 'py-20 sm:py-28')}>
         <div className={cx('w-full', scrolly && 'grid grid-cols-12 items-center gap-10')}>
           <div className={cx(scrolly ? 'col-span-5 xl:col-span-4' : '')}>
-            <SectionIndex n="02" label="Di dalam SolarVein" inverse />
-            <h2 id="di-dalam-title" className="mt-5 text-h2 text-white lg:text-[52px] lg:leading-[56px]">
-              <span className="block">Empat lapis.</span> <span className="block">Satu jalur cairan.</span>
+            <SectionIndex n={SISTEM_DALAM.index.n} label={SISTEM_DALAM.index.label} inverse />
+            <h2 id="sistem-dalam-title" className="mt-5 text-h2 text-white lg:text-[52px] lg:leading-[56px]">
+              <span className="block">{SISTEM_DALAM.title[0]}</span> <span className="block">{SISTEM_DALAM.title[1]}</span>
             </h2>
 
             {scrolly ? (
-              <ol className="mt-12 list-none space-y-1 p-0" aria-label="Bagian kolektor">
+              <ol className="mt-12 list-none space-y-1 p-0" aria-label={SISTEM_DALAM.listLabel}>
                 {PARTS.map((p) => {
                   const on = p.id === focus;
-                  const v = partValue(p.id, result);
+                  const v = valueOf(p.id);
                   return (
                     <li key={p.id}>
                       <button
@@ -122,7 +123,7 @@ export default function Inside() {
                 <div className="h-px origin-left bg-sun" style={{ transform: 'scaleX(var(--inside-p, 0))' }} />
               </div>
             ) : null}
-            {scrolly ? <p className="mt-4 text-small text-stage-ink-2">Nilai dari kondisi Lab saat ini. Tampilan terurai, bukan skala.</p> : null}
+            {scrolly ? <p className="mt-4 text-small text-stage-ink-2">{SISTEM_DALAM.hint}</p> : null}
             <p className="sr-only" aria-live="polite">
               {sel ? `${sel.label}: ${sel.sentence}` : ''}
             </p>
@@ -142,7 +143,7 @@ export default function Inside() {
 
       {scrolly ? null : (
         <div className="page-wrap pb-16 [&_.text-ink]:text-white [&_.text-ink-2]:text-stage-ink-2 [&_.border-ink]:border-white">
-          <PartList store={store} focus={focus} result={result} />
+          <PartList store={store} focus={focus} valueOf={valueOf} />
         </div>
       )}
     </section>

@@ -1,0 +1,4 @@
+/* Masalah: statistics keep their figures on one line; the audit range never breaks at the en dash. */
+.masalah-load .num {
+  white-space: nowrap;
+}
