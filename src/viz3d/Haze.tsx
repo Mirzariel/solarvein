@@ -48,7 +48,7 @@ const GLOW_OVERCAST = new THREE.Color('#2C4A60');
 export function Haze() {
   const stage = useStage();
   const mat = useRef<THREE.ShaderMaterial>(null);
-  const last = useRef({ sun: Number.NaN, rain: Number.NaN, aspect: 0 });
+  const last = useRef({ sun: Number.NaN, night: Number.NaN, aspect: 0 });
   const geometry = useMemo(() => {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-1, -1, 0, 3, -1, 0, -1, 3, 0]), 3));
@@ -71,14 +71,14 @@ export function Haze() {
     const m = stage.mood.current;
     const aspect = size.width / Math.max(1, size.height);
     const l = last.current;
-    if (l.sun === m.sun && l.rain === m.rain && l.aspect === aspect) return;
+    if (l.sun === m.sun && l.night === m.night && l.aspect === aspect) return;
     l.sun = m.sun;
-    l.rain = m.rain;
+    l.night = m.night;
     l.aspect = aspect;
     const s = Math.min(1, Math.max(0, m.sun));
     uniforms.uTop.value.copy(TOP_OVERCAST).lerp(TOP_SUN, s);
     uniforms.uGlow.value.copy(GLOW_OVERCAST).lerp(GLOW_SUN, s);
-    uniforms.uGlowK.value = 0.55 + 0.75 * s;
+    uniforms.uGlowK.value = (0.55 + 0.75 * s) * (1 - 0.5 * Math.min(1, Math.max(0, m.night)));
     uniforms.uCentre.value.set(0.5 + 0.22 * s, 0.62 + 0.1 * s); // the sun glow sits upper right, overcast is centred
     uniforms.uAspect.value = aspect;
   });
