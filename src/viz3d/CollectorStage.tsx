@@ -23,7 +23,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useInView, useMediaQuery, useWebGLAvailable } from '../hooks';
-import { useSimResult } from '../state/selectors';
+import { useVisualSelect } from '../motion';
 import type { StageContextKind } from './stage';
 import { CutawayFallback } from './Schematic';
 import type { QualityTier } from './quality';
@@ -73,15 +73,22 @@ function useDeferredMount(): [(el: HTMLDivElement | null) => void, boolean] {
   return [ref, near || idle];
 }
 
-/** Heat wording from the live qLiquidW (never from a regime/mode flag). v2 shows harvest only: cell -> liquid. */
-const flowText = (pumpOn: boolean, q: number): string =>
-  !pumpOn ? 'pompa mati, tidak ada panen panas' : q > 20 ? 'panas mengalir dari sel ke cairan' : 'panen panas kecil';
-
-/** Live condition sentence for screen readers. A leaf: only this tiny component re-renders when the inputs change
- * (the stage / canvas tree above it never does). */
+/**
+ * Live condition sentence for screen readers, read from the v2 visual frame (frame.result + frame.router; the router's
+ * pump command wins when present). Pump on: heat flows cell -> liquid and the readings are real; pump off: no
+ * collection and no stagnant temperatures. A leaf: only this tiny component re-renders (<= 2 Hz, on text change).
+ */
 function LiveState() {
-  const r = useSimResult();
-  return <>{`Kondisi: ${flowText(r.pumpOn, r.qLiquidW)}; cairan masuk ${formatId(r.inletC, 1)} °C, keluar ${formatId(r.outletC, 1)} °C.`}</>;
+  const text = useVisualSelect(
+    (f) => {
+      const pumpOn = f.router ? f.router.pumpOn : f.result.pumpOn;
+      return pumpOn
+        ? `Kondisi: panas mengalir dari sel ke cairan; cairan masuk ${formatId(f.result.inletC, 0)} °C, keluar ${formatId(f.result.outletC, 0)} °C.`
+        : 'Kondisi: pompa diam; tidak ada pengumpulan panas.';
+    },
+    2,
+  );
+  return <>{text}</>;
 }
 
 /** Hint per input type; says only what works (drag / ctrl+wheel with a mouse, one-finger swipe / pinch on touch). */

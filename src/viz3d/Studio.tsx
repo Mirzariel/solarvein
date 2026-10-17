@@ -197,7 +197,7 @@ export function Studio() {
     l.ex = ex;
 
     const s = clamp01(m.sun);
-    const dark = 1 - 0.5 * clamp01(m.night);
+    const dark = 1 - 0.35 * clamp01(m.night);
     const key = keyRef.current;
     const rim = rimRef.current;
     const hemi = hemiRef.current;
