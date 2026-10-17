@@ -87,7 +87,10 @@ await mkdir(outDir, { recursive: true });
 /** Runs in the page: serialises the n-th inline svg of a frame with computed styles and fonts inlined. */
 const serialise = async ({ id, index }) => {
   const frame = document.querySelector(`[data-export="${id}"]`);
-  const svgs = [...frame.querySelectorAll('svg[data-export-svg]')];
+  // Figure SVGs: marked with data-export-svg, or any top-level svg at least 300 px wide (the site's own charts); not icons or dots.
+  const svgs = [...frame.querySelectorAll('svg')].filter(
+    (el) => !el.parentElement?.closest('svg') && (el.hasAttribute('data-export-svg') || el.getBoundingClientRect().width >= 300),
+  );
   const src = svgs[index];
   if (!src) return null;
 
@@ -102,8 +105,9 @@ const serialise = async ({ id, index }) => {
     return { rgb: `rgb(${r},${g},${b})`, a: a / 255 };
   };
   const PAINT = ['fill', 'stroke'];
-  const PLAIN = ['stroke-width', 'stroke-dasharray', 'stroke-linecap', 'stroke-linejoin', 'opacity', 'font-family', 'font-size', 'font-weight', 'letter-spacing', 'text-anchor', 'dominant-baseline', 'font-variant-numeric'];
+  const PLAIN = ['paint-order', 'stroke-width', 'stroke-dasharray', 'stroke-linecap', 'stroke-linejoin', 'opacity', 'font-family', 'font-size', 'font-weight', 'letter-spacing', 'text-anchor', 'dominant-baseline', 'font-variant-numeric'];
   const TEXTY = new Set(['text', 'tspan']);
+  const NO_PAINT = new Set(['svg', 'g', 'defs', 'pattern', 'clippath', 'lineargradient', 'radialgradient', 'mask', 'stop', 'title', 'desc', 'style']);
 
   const walk = (o, c) => {
     const cs = getComputedStyle(o);
@@ -111,10 +115,18 @@ const serialise = async ({ id, index }) => {
     c.removeAttribute('class');
     c.removeAttribute('style');
     c.removeAttribute('data-export-svg');
-    if (tag !== 'svg' && tag !== 'g' && tag !== 'defs') {
+    if (tag === 'stop') {
+      const sc = rgba(cs.getPropertyValue('stop-color'));
+      if (sc) c.setAttribute('stop-color', sc.rgb);
+    }
+    if (!NO_PAINT.has(tag)) {
       for (const p of PAINT) {
         const v = cs.getPropertyValue(p);
-        const col = rgba(v);
+        const col = v.startsWith('url(') ? { url: v } : rgba(v);
+        if (col && col.url) {
+          c.setAttribute(p, col.url);
+          continue;
+        }
         if (!col) c.setAttribute(p, 'none');
         else {
           c.setAttribute(p, col.rgb);
@@ -175,7 +187,19 @@ for (const f of ids) {
   const entry = { id: f.id, ratio: f.ratio, cssSize: [f.w, f.h], files: [] };
   if (wantPng) {
     const file = `${f.id}.png`;
-    await page.locator(`[data-export="${f.id}"]`).first().screenshot({ path: resolve(outDir, file), animations: 'disabled' });
+    // A dev server can hot-reload the page mid-run ("Cannot find context"); retry once after the page settles.
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await page.locator(`[data-export="${f.id}"]`).first().screenshot({ path: resolve(outDir, file), animations: 'disabled' });
+        break;
+      } catch (e) {
+        if (attempt >= 3) throw e;
+        await page.waitForLoadState('networkidle');
+        await page.waitForSelector(`[data-export="${f.id}"]`);
+        await page.evaluate(() => document.fonts.ready);
+        await page.waitForTimeout(500);
+      }
+    }
     entry.files.push(file);
   }
   if (wantSvg) {

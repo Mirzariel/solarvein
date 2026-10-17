@@ -22,8 +22,8 @@ Proyektor 1280 × 720 pada skala 125 % setara jendela 1024 × 576 piksel CSS. Se
 
 | Tombol | Aksi |
 |---|---|
-| `→`, `PageDown`, `Spasi` | Adegan berikutnya |
-| `←`, `PageUp`, `Shift+Spasi` | Adegan sebelumnya |
+| `→`, `PageDown`, `Spasi` | Adegan berikutnya. Jalur demo BERHENTI di Dampak (adegan 4; HUD menulis "akhir jalur · Q&A: tekan 5–9"); tidak berputar ke Cara kerja |
+| `←`, `PageUp`, `Shift+Spasi` | Adegan sebelumnya (dari adegan cadangan pertama kembali ke Dampak) |
 | `1`–`8` | Lompat ke adegan 1–8 (urutan `PRESENTATION_SCENES` di `src/sections/nav.ts`) |
 | `9` | Adegan cadangan "Bagaimana jika hujan 3 hari?" (Sehari di hotel, tampilan 72 jam) |
 | `0`, `Home` | Kembali ke pembuka |
@@ -42,7 +42,7 @@ Aturan agar tidak bentrok dengan kontrol:
   Tekan `Esc` sekali untuk melepas fokus, lalu tombol adegan hidup lagi.
 - Klik mouse pada tombol, radio, atau tab melepas fokusnya, sehingga `Spasi` dan panah tetap memindahkan adegan.
 - `Ctrl`, `Alt`, dan `Cmd` tidak pernah ditangkap (pintasan peramban tetap jalan).
-- Adegan = lompatan instan ke bagian atas seksi. Adegan Sistem membawa panggung 3D (pemilih A/B/C) tepat di bawah HUD.
+- Adegan = lompatan instan ke bagian atas seksi, atau ke pameran utamanya bila ditandai `data-presentasi-focus` (Sistem: panggung 3D dengan pemilih A/B/C tepat di bawah HUD). Di dalam adegan cadangan (5–9), ← dan → berpindah antar adegan cadangan.
 - Menggulir dengan tangan tetap sah: penghitung adegan ikut mengikuti posisi.
 
 ## 3. Jalur demo, sekitar 3 menit
@@ -108,31 +108,38 @@ Halaman ekspor: `/?export=1&static=1`. Tanpa header, Lenis, atau kanvas 3D; tiap
 (16:9 = 1600 × 900, 4:5 = 1200 × 1500) dengan kaki data: jenis bukti, rujukan, dan "Hasil simulasi SolarVein v2 · asumsi ilustratif".
 `static=1` memaksa gerak berkurang, sehingga semua batang dan grafik sudah penuh. `&only=day-chart,router-diagram` menyaring.
 
+Satu perintah node (tanpa `npm`), situs harus sudah berjalan di `--url`:
+
 ```bash
-npm run build && npm run preview                  # terminal 1
-node scripts/export/figures.mjs                   # terminal 2 -> docs/exports/*.png dan *.svg
+node scripts/export/figures.mjs --url http://localhost:4173   # situs hasil `npm run build && npm run preview`
+node scripts/export/figures.mjs --url http://localhost:5180   # atau server dev integrasi
 node scripts/export/figures.mjs --scale 2 --only day-chart --no-svg --out some/dir
 ```
+
+Hasil masuk ke `docs/exports/` (ditimpa). Jalankan ulang setelah salinan atau tata letak situs berubah: semua gambar dibaca dari
+komponen situs yang sama, jadi tidak ada yang digambar ulang dengan tangan. Server dev kadang memuat ulang halaman di tengah jalan;
+skrip mengulang tangkapan sampai 3 kali. Untuk hasil paling stabil pakai `preview`. Berkas SVG lama yang tidak lagi dihasilkan
+(mis. jumlah SVG per gambar berubah) perlu dihapus dengan tangan.
 
 Opsi: `--url` (asal situs, bawaan `http://localhost:4173`), `--path`, `--out`, `--scale` (bawaan 3), `--only`, `--no-png`, `--no-svg`.
 Skrip memakai Chrome/Edge sistem lewat `playwright-core` (sama seperti `scripts/qa`).
 
 | id (nama berkas) | Isi | Varian |
 |---|---|---|
-| `router-diagram` | Router pada kondisi A, B, C (tebal pipa = bagian panas; putus-putus = belum divalidasi; abu-abu = tidak dipakai) | 16:9, 4:5 |
-| `kpi-baselines` | CO₂e bersih per tahun terhadap B1–B4, plus rincian B2 (16:9 ringkas, 4:5 memakai komponen Waterfall) | 16:9, 4:5 |
-| `day-chart` | Aliran panas kolektor per jam, hari terik, dengan pita mode A/B/C | 16:9, 4:5 |
+| `router-diagram`, `-b`, `-c` | Diagram router situs (`RouterDiagram`, nada `paper`) pada kondisi A, B, C | 16:9 |
+| `router-diagram-4x5` | Diagram yang sama, kondisi A dan B bertumpuk | 4:5 |
+| `kpi-baselines` | CO₂e bersih per tahun terhadap B1–B4 plus rincian B2 (16:9 ringkas; 4:5 memakai komponen `Waterfall` situs) | 16:9, 4:5 |
+| `day-chart` | Grafik sehari situs (`DayTracks`: mode, radiasi, pasokan air panas, tangki, PV), hari terik | 16:9, 4:5 |
 | `day-chart-hujan-3-hari` | Sama, skenario 72 jam | 16:9 |
-| `desiccant-chart` | Penghematan listrik bersih desikan menurut suhu regenerasi, udara buang vs lingkungan; vonis dihitung | 16:9, 4:5 |
-| `evidence-legend` | Enam penanda bukti, hanya bentuk | 16:9, 4:5 |
+| `desiccant-chart` | Grafik desikan situs (`DesiccantChart`, rasio COP 1,5), dibesarkan; vonis dihitung | 16:9, 4:5 |
+| `evidence-legend` | Enam penanda bukti, hanya bentuk (`EvidenceLegend`) | 16:9, 4:5 |
 
-Keluaran: PNG pada 3× (4800 × 2700 atau 3600 × 4500 piksel); SVG untuk setiap gambar yang berupa `<svg>` sebaris (router menghasilkan tiga
-berkas, satu per kondisi). SVG adalah upaya terbaik: gaya terhitung ditulis sebagai atribut (warna `rgb()`), kelas dibuang, dan subset Latin
+Keluaran: PNG pada 3× (4800 × 2700 atau 3600 × 4500 piksel); SVG untuk setiap `<svg>` sebaris selebar ≥ 300 px (satu atau lebih per gambar; `router-diagram-4x5` menghasilkan dua). SVG adalah upaya terbaik: gaya terhitung ditulis sebagai atribut (warna `rgb()`), kelas dibuang, dan subset Latin
 Geist/Geist Mono disematkan sebagai `@font-face` base64. Karakter di luar Latin (subskrip ₂) jatuh ke font cadangan; untuk menyunting di
 Illustrator/Figma pasang Geist dan Geist Mono. Semua angka dibaca dari hook `systemSelectors` pada masukan bawaan; mengubah asumsi bawaan
 lalu menjalankan ulang skrip menghasilkan gambar baru tanpa menyentuh gambar.
 
-Menambah gambar: buat komponen yang dibungkus `<Frame id="…" ratio="16x9" …>` (`src/export/Frame.tsx`), daftarkan di `EXPORTS`
+Semua gambar memakai komponen situs yang sebenarnya; hanya ringkasan KPI 16:9 dan angka samping dibuat di `src/export`. Menambah gambar: buat komponen yang dibungkus `<Frame id="…" ratio="16x9" …>` (`src/export/Frame.tsx`), daftarkan di `EXPORTS`
 (`src/export/ExportPage.tsx`). Bila bagian situs sudah punya komponen gambar sendiri, pakai ulang di dalam `Frame` (seperti `Waterfall`);
 penanda `data-export` di dalam komponen itu otomatis dilepas supaya id tetap unik.
 

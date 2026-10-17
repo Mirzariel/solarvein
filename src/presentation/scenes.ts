@@ -24,9 +24,22 @@ export function buildScenes(ids: readonly string[] = PRESENTATION_SCENES): Scene
 
 export const SCENES: readonly Scene[] = buildScenes();
 
-/** cursor -1 = before the first scene (the opening). Clamped to [-1, n-1]. */
-export function stepCursor(cursor: number, delta: 1 | -1, n: number): number {
-  return Math.min(Math.max(cursor + delta, -1), n - 1);
+/** Index of the last scene of the ~3-minute demo path (the path stops there; the rest is Q&A backup). */
+export function lastDemoIndex(scenes: readonly Scene[] = SCENES): number {
+  let last = -1;
+  for (let i = 0; i < scenes.length; i++) if (scenes[i]!.demo) last = i;
+  return last;
+}
+
+/**
+ * One step with ← / →. cursor -1 = before the first scene (the opening). On the demo path the step stops at the last
+ * demo scene (it never wraps into the Q&A backups: those are reached with 5–9); inside the backups it moves
+ * between backups and ← from the first backup returns to the end of the demo path.
+ */
+export function stepCursor(cursor: number, delta: 1 | -1, scenes: readonly Scene[] = SCENES): number {
+  const lastDemo = lastDemoIndex(scenes);
+  const max = cursor > lastDemo ? scenes.length - 1 : lastDemo;
+  return Math.min(Math.max(cursor + delta, -1), max);
 }
 
 /**
