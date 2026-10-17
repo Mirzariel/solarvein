@@ -171,7 +171,7 @@ function CollectorCanvas({ explodeOnView = false, preserveDrawingBuffer = false,
       <Canvas
         frameloop={animate ? 'demand' : 'never'}
         dpr={[1, TIERS[tier].dpr]}
-        camera={{ fov: CAMERA_FOV, near: 0.1, far: 40, position: initialCameraPosition(stage.variant) }}
+        camera={{ fov: CAMERA_FOV, near: 0.1, far: 60, position: initialCameraPosition(stage.variant) }}
         gl={{ antialias: true, alpha: transparent, powerPreference: 'high-performance', preserveDrawingBuffer }}
         onCreated={({ gl }) => {
           gl.localClippingEnabled = true;

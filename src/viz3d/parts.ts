@@ -1,6 +1,7 @@
 /**
- * The four annotated parts of section 02 (docs/audit/02-ux-ia.md 2.2) and their live values.
- * Three-free: the Inside section and the stage overlay both import it.
+ * The four annotated parts of the inspect stage and their live values.
+ * Three-free: the Inside section and the stage overlay both import it. v2 copy: heat flows ONLY from the cells to the
+ * liquid (harvest); there is no two-way / rejection wording.
  * Values come straight from a SimResult (no physics here).
  */
 import type { SimResult } from '../sim';
@@ -26,28 +27,28 @@ export const PARTS: readonly PartSpec[] = [
     index: 1,
     label: 'Sel PV & kaca',
     layers: ['glass', 'cells'],
-    sentence: 'Mengubah cahaya jadi listrik; efisiensinya turun saat sel memanas.',
+    sentence: 'Mengubah cahaya jadi listrik; sel yang panas kurang efisien, dan panasnya mengalir ke cairan.',
   },
   {
     id: 'absorber',
     index: 2,
     label: 'Pelat absorber',
     layers: ['interface', 'absorber'],
-    sentence: 'Pelat aluminium yang menghantar panas antara sel dan saluran, ke dua arah.',
+    sentence: 'Pelat aluminium yang menghantar panas dari sel ke saluran cairan.',
   },
   {
     id: 'channel',
     index: 3,
     label: 'Saluran cairan',
     layers: ['channel'],
-    sentence: 'Tabung tembaga serpentine; cairan selalu masuk lalu keluar.',
+    sentence: 'Tabung tembaga serpentine; cairan masuk di satu ujung dan keluar lebih hangat di ujung lain.',
   },
   {
     id: 'insulation',
     index: 4,
     label: 'Insulasi & rangka',
     layers: ['insulation'],
-    sentence: 'Menahan rugi panas di sisi belakang.',
+    sentence: 'Menahan panas agar tidak lolos lewat sisi belakang.',
   },
 ] as const;
 

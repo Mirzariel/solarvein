@@ -19,7 +19,10 @@ import type { EffectProps } from './shared';
  *
  * Every effect reads ONE source: the weather engine's visual frame (interpolated inputs -> simulate()).
  * There are no private smoothers on input-derived values: when the frame says G = 444 W/m2 and q = +210 W, the
- * light, the rain, the arrows and the pulses all show exactly that state. Nothing animates for decoration.
+ * light, the arrows and the pulses all show exactly that state. Nothing animates for decoration.
+ * v2 = harvest only: heat arrows go cell -> liquid (never reversed, never cyan). Rain is NOT part of the story; the
+ * subtle grey streaks only appear when `frame.climate.rainMmH > 0` (never from the v1 inputs) and the glass never
+ * gets wet or cooler-looking.
  */
 export function SceneEffects() {
   const showHeatArrows = useStore((s) => s.showHeatArrows);
@@ -29,7 +32,8 @@ export function SceneEffects() {
   // the inspect stage (02) shows the layers, not the weather: no sun rays, rain or electrical pulses there
   const weatherFx = useStageOptional()?.variant !== 'inspect';
 
-  const targets = useRef(deriveTargetsInto(makeTargets(), weather.frame().result, showHeatArrows));
+  const frame0 = weather.frame();
+  const targets = useRef(deriveTargetsInto(makeTargets(), frame0.result, showHeatArrows, frame0));
   const version = useRef(0);
   const seen = useRef({ epoch: weather.frame().epoch, show: showHeatArrows });
 
@@ -48,7 +52,7 @@ export function SceneEffects() {
     if (f.epoch !== seen.current.epoch || showHeatArrows !== seen.current.show) {
       seen.current.epoch = f.epoch;
       seen.current.show = showHeatArrows;
-      deriveTargetsInto(targets.current, f.result, showHeatArrows);
+      deriveTargetsInto(targets.current, f.result, showHeatArrows, f);
       version.current++;
     }
   }, -6);
