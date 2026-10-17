@@ -120,13 +120,22 @@ function FramingToggle({ store, tone }: { store: StageStore; tone: 'stage' | 'pa
 }
 
 /** One quiet line: what the numbers are for (array size from the system inputs, never typed). */
-function ArrayNote() {
+function ArrayNote({ store, reduce, tone }: { store: StageStore; reduce: boolean; tone: 'stage' | 'page' }) {
   const sys = useSystem();
   const area = Math.round(sys.array.modules * sys.array.module.areaM2);
   return (
-    <p className="mt-5 max-w-[72ch] text-small text-ink-3">
-      {SISTEM.statement(sys.hotel.rooms, area)}
-    </p>
+    <div className="mt-5 flex flex-wrap items-center justify-between gap-x-8 gap-y-1">
+      <p className="max-w-[72ch] text-small text-ink-3">{SISTEM.statement(sys.hotel.rooms, area)}</p>
+      <div className="flex items-center gap-6">
+        {reduce ? <FramingToggle store={store} tone={tone} /> : null}
+        <a
+          href="#lab"
+          className="inline-flex min-h-11 items-center text-small text-ink underline decoration-line-strong underline-offset-4 transition-ui hover:decoration-ink"
+        >
+          Buka Lab
+        </a>
+      </div>
+    </div>
   );
 }
 
@@ -168,7 +177,7 @@ export default function Hero() {
   return (
     <section ref={root} id="sistem" aria-labelledby="sistem-judul" className="relative pb-20 pt-16 lg:pb-32 lg:pt-20 [@media(min-width:1024px)_and_(max-height:800px)]:pt-10">
       {/* the sky outside: continues the opening photo's sky */}
-      <WeatherSky className="pointer-events-none absolute inset-x-0 -top-40 -z-10 h-[1000px] [mask-image:linear-gradient(180deg,transparent_0,black_200px)]" />
+      <WeatherSky className="pointer-events-none absolute inset-x-0 -top-40 -z-10 h-[1000px] [mask-image:linear-gradient(180deg,transparent_0,rgb(0_0_0/0.2)_100px,black_340px)]" />
 
       <div className="page-wrap">
         {/* the head comes first: the instruction arrives before the control. Phrases never split. */}
@@ -186,20 +195,13 @@ export default function Hero() {
 
         {/* ── the stage card ── */}
         <div data-stage-card data-presentasi-focus data-tone="stage" className="mt-10 overflow-hidden rounded-[20px] bg-stage-0 text-stage-ink shadow-4 will-change-transform lg:mt-14 [@media(min-width:1024px)_and_(max-height:800px)]:mt-6 lg:rounded-[28px]">
-          <div className="relative h-[360px] sm:h-[480px] lg:h-[clamp(340px,calc(100svh-17rem),700px)]">
+          <div className="relative h-[360px] sm:h-[480px] lg:h-[clamp(340px,calc(100svh-17rem),700px)] [@media(min-width:1024px)_and_(max-height:760px)]:h-[56svh]">
             <Suspense fallback={<StageFallback />}>
               <CollectorStage store={store} zoomButtons={tablet} hint>
                 {wide ? (
                   <div className="absolute left-5 top-5 z-20 flex items-center gap-4 rounded-full bg-stage-0/80 py-1 pl-1 pr-5 shadow-e2 ring-1 ring-white/10">
                     <ModeSwitch wide />
-                    <a
-                      href="#lab"
-                      className="inline-flex min-h-11 items-center text-small text-stage-ink underline decoration-stage-line underline-offset-4 transition-ui hover:decoration-stage-ink"
-                    >
-                      Buka Lab
-                    </a>
-                    {reduce ? <FramingToggle store={store} tone="stage" /> : null}
-                  </div>
+                    </div>
                 ) : null}
               </CollectorStage>
             </Suspense>
@@ -228,21 +230,10 @@ export default function Hero() {
               <HeatReadout size="md" tone="page" rule={false} />
             </div>
             <SplitLine tone="page" className="border-t border-line pt-4" />
-            <a
-              href="#lab"
-              className="inline-flex min-h-11 items-center text-small text-ink underline decoration-line-strong underline-offset-4 transition-ui hover:decoration-ink"
-            >
-              Buka Lab
-            </a>
-            {reduce ? (
-              <span className="ml-6">
-                <FramingToggle store={store} tone="page" />
-              </span>
-            ) : null}
           </div>
         )}
 
-        <ArrayNote />
+        <ArrayNote store={store} reduce={reduce} tone="page" />
 
         <div className="mt-6 max-w-[44rem]">
           <DetailPanel />
