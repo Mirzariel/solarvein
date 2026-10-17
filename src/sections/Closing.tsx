@@ -1,5 +1,6 @@
 import gsap from 'gsap';
 import { useRef } from 'react';
+import { CLOSING } from '../content/closing';
 import { useScrollScene } from '../motion';
 import { ArrowIcon, ButtonLink, LogoMark, Picture } from '../ui';
 
@@ -25,15 +26,15 @@ export default function Closing() {
       <div data-closing-copy className="page-wrap flex flex-col items-center text-center">
         <LogoMark className="h-12 w-auto text-ink lg:h-14" />
         <h2 id="penutup-judul" className="mt-10 text-display-xl text-ink">
-          <span className="block">Atap yang sama.</span> <span className="block text-ink-3">Dua manfaat.</span>
+          <span className="block">{CLOSING.title[0]}</span> <span className="block text-ink-3">{CLOSING.title[1]}</span>
         </h2>
-        <p className="mt-8 max-w-[40ch] text-lead text-ink-2">SolarVein masih sebuah simulasi, dibuat supaya idenya bisa diuji, dihitung, dan dibantah.</p>
+        <p className="mt-8 max-w-[40ch] text-lead text-ink-2">{CLOSING.honest}</p>
         <div className="mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-4">
-          <ButtonLink href="#pengalaman" variant="primary" size="lg" className="text-surface!">
-            Kembali ke simulasi
+          <ButtonLink href={CLOSING.ctaPrimary.href} variant="primary" size="lg" className="text-surface!">
+            {CLOSING.ctaPrimary.label}
           </ButtonLink>
-          <a href="#lab-rincian" className="group inline-flex min-h-11 items-center gap-2 text-button text-ink">
-            Baca asumsi dan batasnya
+          <a href={CLOSING.ctaSecondary.href} className="group inline-flex min-h-11 items-center gap-2 text-button text-ink">
+            {CLOSING.ctaSecondary.label}
             <ArrowIcon size={16} className="transition-transform duration-[220ms] ease-ui group-hover:translate-x-0.5" />
           </a>
         </div>
@@ -41,8 +42,9 @@ export default function Closing() {
 
       <div className="page-wrap mt-20 lg:mt-28">
         <div data-closing-photo className="relative h-[clamp(300px,60svh,680px)] overflow-hidden rounded-[20px] will-change-transform lg:rounded-[28px]">
-          <Picture fill name="roof-array" alt="Ilustrasi konteks: atap industri yang dipenuhi panel surya di bawah langit cerah." position="50% 55%" />
+          <Picture fill name="roof-array" alt={CLOSING.photoAlt} position="50% 55%" />
         </div>
+        <p className="mt-3 text-small text-ink-3">{CLOSING.photoCaption}</p>
       </div>
     </section>
   );
