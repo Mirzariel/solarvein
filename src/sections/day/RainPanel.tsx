@@ -2,13 +2,13 @@ import { useDeferredValue, useMemo, type ReactNode } from 'react';
 import { getSystemView, type DayResult, type HeaterType } from '../../sim/system';
 import { useSystemStore } from '../../state/system';
 import { useDay, useSystem } from '../../state/systemSelectors';
-import { Evidence, formatId } from '../../ui';
+import { Evidence, formatId, formatWithUnit } from '../../ui';
 import { Val } from './units';
 
 const HEATER_LABEL: Record<HeaterType, string> = {
-  lpg: 'pemanas LPG',
-  'electric-resistance': 'pemanas listrik',
-  'heat-pump': 'pompa kalor air panas',
+  lpg: 'LPG',
+  'electric-resistance': 'resistansi listrik',
+  'heat-pump': 'pompa kalor',
 };
 
 /** Tank volume factor for the "tangki lebih besar" option; the loss coefficient scales with the shell area ∝ V^(2/3). */
@@ -77,30 +77,29 @@ export function RainPanel() {
   const hpCopBase = sys.carbon.hpwhCop;
 
   return (
-    <section aria-labelledby="sehari-hujan" className="mt-16 lg:mt-24">
+    <section aria-labelledby="sehari-hujan">
       <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
         <h3 id="sehari-hujan" className="text-h3 text-ink">
           Saat hujan panjang &amp; malam
         </h3>
-        <p className="text-small text-ink-2">Skenario 3 hari hujan, strategi yang dipilih.</p>
       </div>
       <ol className="m-0 mt-5 list-none p-0">
         <Line n="1" title={`Air panas tetap ${formatId(sys.hotel.dhwSetpointC, 0)} °C`}>
-          {capitalize(HEATER_LABEL[sys.hotel.heater])} menutup <Val v={t.dhwBackupKWhTh} d={0} unit="kWh" kind="th" /> dari kebutuhan{' '}
-          <Val v={t.dhwDemandKWhTh} d={0} unit="kWh" kind="th" />; kebutuhan yang tak terpenuhi <Val v={t.unmetKWhTh} d={0} unit="kWh" kind="th" />.
+          Pemanas cadangan ({HEATER_LABEL[sys.hotel.heater]}) menutup <Val v={t.dhwBackupKWhTh} d={0} unit="kWh" kind="th" /> dari kebutuhan{' '}
+          <Val v={t.dhwDemandKWhTh} d={0} unit="kWh" kind="th" />; kebutuhan yang tidak terpenuhi <Val v={t.unmetKWhTh} d={0} unit="kWh" kind="th" />.
         </Line>
-        <Line n="2" title="AC tetap nyaman">
-          Koil AC biasa mengurus udara lembap; beban listriknya rata-rata <Val v={f.coilAvgKWe} d={1} unit="kW" kind="e" />. {f.desiccantIdle ? 'Desikan tidak ikut bekerja.' : 'Desikan bekerja sebagian.'}
+        <Line n="2" title="Pendingin udara">
+          Koil AC tetap menangani udara lembap; beban listriknya rata-rata <Val v={f.coilAvgKWe} d={1} unit="kW" kind="e" />. {f.desiccantIdle ? 'Desikan tidak ikut bekerja.' : 'Desikan bekerja sebagian.'}
         </Line>
         <Line n="3" title="Kontribusi SolarVein turun">
-          Fraksi surya air panas dari <span className="num text-ink">{formatId(clearFrac * 100, 0)}%</span> (hari terik) menjadi{' '}
-          <span className="num text-ink">{formatId(t.solarFraction * 100, 0)}%</span>. Hotel tetap berfungsi seperti tanpa SolarVein; yang hilang hematnya, dan rugi tangki <Val v={t.tankLossKWhTh} d={0} unit="kWh" kind="th" /> serta listrik pompa <Val v={t.parasiticKWhE} d={1} unit="kWh" kind="e" /> tetap terpakai.
+          Fraksi surya air panas dari <span className="num text-ink">{formatWithUnit(clearFrac * 100, '%', 0)}</span> (hari terik) menjadi{' '}
+          <span className="num text-ink">{formatWithUnit(t.solarFraction * 100, '%', 0)}</span> (termasuk simpanan awal tangki). Hotel tetap berfungsi seperti tanpa SolarVein; yang hilang hematnya, dan kerugian tangki <Val v={t.tankLossKWhTh} d={0} unit="kWh" kind="th" /> serta listrik pompa <Val v={t.parasiticKWhE} d={1} unit="kWh" kind="e" /> tetap terpakai.
         </Line>
         <Line n="4" title="Opsi">
           <p className="m-0">
             <span>
               <Evidence tag="simulasi" />{' '}
-              Tangki {TANK_FACTOR}× lebih besar: fraksi surya <span className="num text-ink">{formatId(f.bigTank.fraction * 100, 0)}%</span>, cadangan{' '}
+              Tangki {TANK_FACTOR}× lebih besar: fraksi surya <span className="num text-ink">{formatWithUnit(f.bigTank.fraction * 100, '%', 0)}</span>, cadangan{' '}
               <Val v={f.bigTank.backupKWhTh} d={0} unit="kWh" kind="th" />.
             </span>
           </p>
@@ -122,4 +121,17 @@ export function RainPanel() {
   );
 }
 
-const capitalize = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** The one rain line that stays visible: how much the backup heater covers over 3 rainy days, and that service is unaffected. */
+export function RainLine() {
+  const rain = useDay('hujan-3-hari');
+  const t = rain.totals;
+  const backupPct = t.dhwDemandKWhTh > 0 ? (t.dhwBackupKWhTh / t.dhwDemandKWhTh) * 100 : 0;
+  const servedPct = t.dhwDemandKWhTh > 0 ? (1 - t.unmetKWhTh / t.dhwDemandKWhTh) * 100 : 100;
+  return (
+    <p className="m-0 max-w-[64ch] text-body text-ink">
+      3 hari hujan: pemanas cadangan menutup <span className="num">{formatWithUnit(backupPct, '%', 0)}</span>; layanan tetap{' '}
+      <span className="num">{formatWithUnit(servedPct, '%', 0)}</span>.
+    </p>
+  );
+}

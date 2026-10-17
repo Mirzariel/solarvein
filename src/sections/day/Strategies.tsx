@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { LABELS, type AnnualResult, type AreaSweepPoint, type RouterStrategy } from '../../sim/system';
 import { useAreaSweep, useYear } from '../../state/systemSelectors';
 import { ChartCard } from '../../charts/ChartCard';
-import { Evidence, formatId } from '../../ui';
+import { Evidence, formatId, formatWithUnit } from '../../ui';
 import { Val } from './units';
 
 const STRATEGIES: readonly RouterStrategy[] = ['dhw-priority', 'fixed-schedule', 'adaptive'];
@@ -51,6 +51,21 @@ export function strategySentence(dhw: AnnualResult, fixed: AnnualResult, adaptiv
   );
 }
 
+/** The one adaptive line that stays visible: what the router did on this roof, stated from the annual numbers. */
+export function adaptiveLine(dhw: AnnualResult, adaptive: AnnualResult): ReactNode {
+  const toDesiccant = adaptive.totals.desiccantRegenKWhTh;
+  const dA = Math.abs(adaptive.totals.dhwSolarKWhTh - dhw.totals.dhwSolarKWhTh);
+  if (dA <= EPS_KWH && toDesiccant <= EPS_KWH) {
+    return 'Pada atap ini router memilih air panas dan menolak desikan; keputusan itu dihitung, bukan diasumsikan.';
+  }
+  return (
+    <>
+      Pada atap ini router mengirim <N v={toDesiccant} />
+      <KT /> per tahun ke desikan; keputusan itu dihitung, bukan diasumsikan.
+    </>
+  );
+}
+
 /** Sentence for the area sweep. */
 export function areaSentence(points: AreaSweepPoint[]): ReactNode {
   const by = (a: number, s: RouterStrategy) => points.find((p) => p.areaM2 === a && p.strategy === s);
@@ -64,7 +79,7 @@ export function areaSentence(points: AreaSweepPoint[]): ReactNode {
   });
   const unused = (
     <>
-      Pada <N v={big} /> m² panas yang tidak terpakai mencapai <N v={bigAd.bypassKWhThPerYear} />
+      Pada <N v={big} /> m² panas yang tidak dipakai mencapai <N v={bigAd.bypassKWhThPerYear} />
       <KT /> per tahun
     </>
   );
@@ -98,7 +113,7 @@ export function Strategies() {
   const maxDhw = Math.max(1, ...STRATEGIES.map((s) => years[s].totals.dhwSolarKWhTh));
 
   return (
-    <div className="mt-16 grid gap-x-12 gap-y-14 lg:mt-24 lg:grid-cols-2">
+    <div className="grid gap-y-12">
       <ChartCard
         title="Tiga strategi, satu tahun"
         unit={<span className="inline-flex items-center gap-2"><Evidence tag="simulasi" /> <span>kWh<sub>th</sub>/tahun</span></span>}
@@ -126,7 +141,7 @@ export function Strategies() {
                       <Bar frac={t.dhwSolarKWhTh / maxDhw} className="bg-heat-mark" />
                     </span>
                   </th>
-                  <td className="num py-3 pr-3 text-right text-mono-s text-ink">{formatId(t.solarFraction * 100, 0)}%</td>
+                  <td className="num py-3 pr-3 text-right text-mono-s text-ink">{formatWithUnit(t.solarFraction * 100, '%', 0)}</td>
                   <td className="num py-3 pr-3 text-right text-mono-s text-ink">{formatId(t.dhwSolarKWhTh, 0)}</td>
                   <td className="num py-3 text-right text-mono-s text-ink">{formatId(t.desiccantRegenKWhTh, 0)}</td>
                 </tr>
@@ -139,7 +154,7 @@ export function Strategies() {
       <ChartCard
         title="Luas panel dan surplus"
         unit={<span className="inline-flex items-center gap-2"><Evidence tag="simulasi" /> <span>strategi Adaptif, kWh<sub>th</sub>/tahun</span></span>}
-        subtitle="Pada luas besar, panas yang tidak terpakai (bypass) cepat bertambah."
+        subtitle="Pada luas besar, panas yang tidak dipakai (bypass) cepat bertambah; panas itu dilepas lewat pembuang panas (dry cooler)."
         footer={areaSentence(sweep)}
       >
         <ul className="m-0 list-none p-0">
@@ -161,10 +176,10 @@ export function Strategies() {
                     air panas <Val v={p.dhwSolarKWhThPerYear} d={0} unit="" className="num text-ink" />
                   </span>
                   <span>
-                    tidak terpakai <Val v={p.bypassKWhThPerYear} d={0} unit="" className="num text-ink" />
+                    tidak dipakai <Val v={p.bypassKWhThPerYear} d={0} unit="" className="num text-ink" />
                   </span>
                   <span>
-                    selisih vs Air panas dulu <Val v={diff} d={0} unit="" signed className="num text-ink" />
+                    selisih terhadap Air panas dulu <Val v={diff} d={0} unit="" signed className="num text-ink" />
                   </span>
                 </span>
               </li>
@@ -173,7 +188,7 @@ export function Strategies() {
         </ul>
         <p className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-small text-ink-2">
           <span className="inline-flex items-center gap-2"><span aria-hidden="true" className="block size-2.5 rounded-[2px] bg-heat-mark" />ke air panas</span>
-          <span className="inline-flex items-center gap-2"><span aria-hidden="true" className="block size-2.5 rounded-[2px] bg-loss" />tidak terpakai (sel lebih dingin)</span>
+          <span className="inline-flex items-center gap-2"><span aria-hidden="true" className="block size-2.5 rounded-[2px] bg-loss" />tidak dipakai (bypass), sel lebih dingin</span>
         </p>
       </ChartCard>
     </div>

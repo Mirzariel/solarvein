@@ -1,9 +1,7 @@
 import type { ReactNode } from 'react';
-import { DESICCANT_NOT_BENEFICIAL } from '../../sim/system';
-import type { DesiccantEvalDetail } from '../../sim/system/desiccant';
-import { verdictText } from '../../charts/desiccant/DesiccantChart';
+import { DESICCANT_NOT_BENEFICIAL, LABELS, type DesiccantEvalDetail } from '../../sim/system';
 import { linear } from '../../charts/day/scales';
-import { formatId } from '../../ui';
+import { formatId, formatWithUnit } from '../../ui';
 import { Val } from '../day/units';
 
 const kW = (w: number) => w / 1000;
@@ -60,7 +58,7 @@ export function Ledger({ e, ratio, airLabel }: { e: DesiccantEvalDetail; ratio: 
   const route = t.after + t.residual + t.fan + t.pump + t.pv;
   const seg = (w: number) => `${Math.max(0, (w / Math.max(1, t.ref)) * 100)}%`;
   const net = kW(t.net);
-  const verdict = verdictText(e);
+  const verdict = !e.operating ? 'tidak beroperasi' : `${LABELS.verdict[e.verdict]}${e.nearBreakEven ? ' (≈ impas)' : ''}`;
   const notBeneficial = !e.operating || t.net <= 0;
   const share = t.ref > 0 ? (t.net / t.ref) * 100 : 0;
 
@@ -70,7 +68,7 @@ export function Ledger({ e, ratio, airLabel }: { e: DesiccantEvalDetail; ratio: 
         Neraca untuk <span className="num">{formatId(e.regenC, 0)}</span> °C
       </h3>
       <p className="mt-1 text-small text-ink-2">
-        {airLabel}, rasio COP after-cooler/koil <span className="num text-ink">{formatId(ratio, 1)}</span>.
+        {airLabel}, rasio COP pendingin lanjutan/koil <span className="num text-ink">{formatId(ratio, 1)}</span>.
       </p>
 
       {e.operating ? (
@@ -79,7 +77,7 @@ export function Ledger({ e, ratio, airLabel }: { e: DesiccantEvalDetail; ratio: 
             <Row sign="" label="Koil acuan, satu koil">
               <Val v={kW(t.ref)} d={2} unit="kW" kind="e" />
             </Row>
-            <Row sign="−" label="After-cooler (pendingin lanjutan)">
+            <Row sign="−" label="Pendingin lanjutan (after-cooler)">
               <Val v={kW(t.after)} d={2} unit="kW" kind="e" />
             </Row>
             <Row sign="−" label="Koil sisa">
@@ -110,16 +108,16 @@ export function Ledger({ e, ratio, airLabel }: { e: DesiccantEvalDetail; ratio: 
             </div>
           </div>
           <p className="mt-2 text-small text-ink-2">
-            Bar atas: koil acuan. Bar bawah: jalur desikan (<span className="num">{formatId((route / Math.max(1, t.ref)) * 100, 0)}%</span> dari acuan).
+            Bar atas: koil acuan. Bar bawah: jalur desikan (<span className="num">{formatWithUnit((route / Math.max(1, t.ref)) * 100, '%', 0)}</span> dari acuan).
           </p>
 
-          <p className="mt-5 text-label text-ink">Per kg uap yang disingkirkan</p>
+          <p className="mt-5 text-label text-ink">Per kg kelembapan yang harus dibuang</p>
           <p className="mt-1 text-small text-ink-2">
             Desikan <Val v={e.perKgWater.desiccantKWhE} d={2} unit="kWh" kind="e" /> · kompresor <Val v={e.perKgWater.coilRefKWhE} d={2} unit="kWh" kind="e" />
           </p>
         </>
       ) : (
-        <p className="mt-5 text-body text-ink-2">Pada suhu ini bed menyerap hampir tak ada uap, jadi unit tidak dijalankan dan tidak ada neraca.</p>
+        <p className="mt-5 text-body text-ink-2">Pada suhu ini unggun menyerap hampir tidak ada uap, sehingga unit tidak dijalankan dan tidak ada neraca.</p>
       )}
 
       <p className="mt-5 text-label text-ink">Impas rasio COP</p>
@@ -133,12 +131,12 @@ export function Ledger({ e, ratio, airLabel }: { e: DesiccantEvalDetail; ratio: 
           <>Hematnya <Val v={net} d={2} unit="kW" kind="e" signed /> berarti listrik bertambah. Putusan: {verdict.toLowerCase()}.</>
         ) : (
           <>
-            Hemat bersih hanya <span className="num">{formatId(share, 1)}%</span> dari koil acuan, masih dalam ketidakpastian model. Putusan: {verdict.toLowerCase()}.
+            Hemat bersih hanya <span className="num">{formatWithUnit(share, '%', 1)}</span> dari koil acuan, masih dalam ketidakpastian model. Putusan: {verdict.toLowerCase()}.
           </>
         )}
       </p>
       {e.operating && t.pv === 0 && t.pump === 0 ? (
-        <p className="mt-2 text-small text-ink-2">Penalti PV dan daya pompa bernilai 0 di sini, jadi angka ini batas atas; simulasi sehari penuh membebankannya.</p>
+        <p className="mt-2 text-small text-ink-2">Penalti PV dan daya pompa bernilai 0 di sini, sehingga angka ini batas atas; simulasi sehari penuh membebankannya.</p>
       ) : null}
     </div>
   );
