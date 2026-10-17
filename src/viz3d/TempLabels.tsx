@@ -1,4 +1,11 @@
 /**
+ * Router outlet cue (v2): the "Keluar NN °C" label is the visual source of the router diagram. Its root carries
+ * `data-stage-cue="outlet"` (and the inlet one `data-stage-cue="inlet"`), so a section can read
+ * `document.querySelector('[data-stage-cue="outlet"]')?.getBoundingClientRect()` and start its SVG hand-off from the
+ * label's right end. The number is the live `result.outletC`; with the pump off it reads "pompa mati" (no stagnant
+ * outlet temperature is presented as a reading). In the 'hotel' framing the inlet label is hidden (restraint: the
+ * outlet cue only).
+ *
  * Experience stage: Masuk / Keluar temperature annotations (mono, 1 px leader lines, 4 px anchor dot) pinned to the inlet and
  * outlet stubs (docs/audit/05-creative-direction.md 5.6). Positions are written from the projection sink each
  * rendered frame (no React render per frame); the numbers re-render only when the sim result changes.
@@ -27,7 +34,11 @@ const RUN = 16;
 export function TempLabels() {
   const stage = useStage();
   // the numbers follow the weather engine's visual frame (<= 15 Hz, re-render only when the 0.1 °C text changes)
-  const vals = useVisualSelect((f) => [Math.round(f.result.inletC * 10) / 10, Math.round(f.result.outletC * 10) / 10] as const, 15, (a, b) => a[0] === b[0] && a[1] === b[1]);
+  const vals = useVisualSelect(
+    (f) => [Math.round(f.result.inletC * 10) / 10, Math.round(f.result.outletC * 10) / 10, f.result.pumpOn] as const,
+    15,
+    (a, b) => a[0] === b[0] && a[1] === b[1] && a[2] === b[2],
+  );
   const labels = useRef<(HTMLDivElement | null)[]>([]);
   const lines = useRef<(SVGPolylineElement | null)[]>([]);
   const dots = useRef<(SVGGElement | null)[]>([]);
@@ -46,7 +57,8 @@ export function TempLabels() {
         const ln = lines.current[i];
         const dot = dots.current[i];
         if (!p || !el || !ln || !dot) return;
-        const show = p.visible && W >= 320;
+        const hotelView = stage.store.getState().framing > 0.5;
+        const show = p.visible && W >= 320 && !(hotelView && d.id === 'inlet');
         const vis = show ? 'visible' : 'hidden';
         setStyleC(el, 'visibility', vis);
         setStyleC(ln as unknown as HTMLElement, 'visibility', vis);
@@ -115,12 +127,19 @@ export function TempLabels() {
           ref={(el) => {
             labels.current[i] = el;
           }}
+          data-stage-cue={d.id}
           className="absolute left-0 top-0 whitespace-nowrap rounded-md bg-[color:rgba(14,17,20,0.78)] px-2 py-1 font-mono text-xs leading-4"
           style={{ visibility: 'hidden' }}
         >
           <span className={INK}>{d.symbol} </span>
-          <span className={`${INK} font-medium`}>{formatId(values[i] ?? 0, 1)}</span>
-          <span className={INK}> °C</span>
+          {i === 1 && !values[2] ? (
+            <span className={INK}>pompa mati</span>
+          ) : (
+            <>
+              <span className={`${INK} font-medium`}>{formatId((values[i] as number) ?? 0, 1)}</span>
+              <span className={INK}> °C</span>
+            </>
+          )}
         </div>
       ))}
     </div>
