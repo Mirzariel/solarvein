@@ -253,6 +253,7 @@ export const DEFAULT_SYSTEM: SystemInputs = {
   hotel: { ...HOTEL_PRESETS['hotel-100'] },
   array: {
     modules: DEFAULT_MODULES,
+    systemDerate: 0.84, // inverter, wiring, soiling, mismatch, IAM (asumsi; gate-1 P1-1)
     module: {
       ...DEFAULT_INPUTS,
       heatLoadAvailable: true,

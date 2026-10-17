@@ -166,6 +166,8 @@ export interface DesiccantEvalDetail extends DesiccantEval {
 }
 
 const zeroEval = (i: DesiccantEvalInput, notes: string[]): DesiccantEvalDetail => ({
+  operating: false, // TODO(W3 fix round)
+  breakEvenCopRatio: null,
   regenC: i.regenC,
   regenAirRh: 0,
   uptakeProcess: 0,
@@ -421,6 +423,8 @@ export function evaluateDesiccant(i: DesiccantEvalInput): DesiccantEvalDetail {
   const refIds: RefIdLike[] = isComposite ? [] : [REF_PESARAN_MILLS_1987];
 
   return {
+    operating: M >= 0.01, // TODO(W3 fix round): refine
+    breakEvenCopRatio: null, // TODO(W3 fix round)
     regenC,
     regenAirRh: rhRegen,
     uptakeProcess: qProc,

@@ -22,7 +22,7 @@ function hotel(over: Partial<HotelParams> = {}): HotelParams {
 export function sysFixture(over: { hotel?: Partial<HotelParams>; desiccantOn?: boolean; hp?: boolean } = {}): SystemInputs {
   return {
     hotel: hotel(over.hotel),
-    array: { modules: 50, module: {} as never },
+    array: { modules: 50, systemDerate: 0.84, module: {} as never },
     tank: { volumeL: 5000, uaWPerK: 5, maxC: 80, initialTopC: 40, initialBottomC: 30 },
     desiccant: { enabled: over.desiccantOn ?? false } as never,
     controller: { strategy: 'adaptive', onK: 8, offK: 3, desiccantMinRegenC: 55 },

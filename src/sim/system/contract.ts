@@ -111,6 +111,11 @@ export interface ArrayParams {
   modules: number;
   /** Per-module collector parameters (weather/inlet fields are overwritten per time step). */
   module: SimInputs;
+  /**
+   * PV system derate applied to DC module output of PV/T AND plain-PV baselines (inverter, wiring, soiling,
+   * mismatch, IAM) [-], e.g. 0,84. Specific yield must land in a plausible band for the site.
+   */
+  systemDerate: number;
 }
 
 export interface TankParams {
@@ -210,7 +215,10 @@ export interface SystemInputs {
 // ─────────────────────────────────────────────────────────────────────────────
 // Router
 // ─────────────────────────────────────────────────────────────────────────────
-/** Heat destinations of the router. 'dhw' = direct to the DHW preheat HX during a draw. */
+/**
+ * Heat destinations of the router. 'dhw' = direct to the DHW preheat HX during a draw.
+ * 'bypass' = heat deliberately not used (dumped/extract-less) so the cells run cooler — its value is the PV gain.
+ */
 export type Sink = 'dhw' | 'desiccant' | 'tank' | 'bypass';
 /** A strong sun / heat available · B weak sun & humid: stored heat only, desiccant usually unavailable · C no collection. */
 export type ControllerMode = 'A' | 'B' | 'C';
@@ -408,6 +416,10 @@ export interface DesiccantEval {
    */
   perKgWater: { desiccantKWhE: number; coilRefKWhE: number };
   verdict: Verdict;
+  /** False when the bed removes (almost) no water at this regeneration temperature — the unit should not run. */
+  operating: boolean;
+  /** After-cooler/coil COP ratio at which netSavingWe = 0 for these conditions (null if no root). */
+  breakEvenCopRatio: number | null;
   /** Hours a fully dry bed can dehumidify without regeneration. */
   autonomyH: number;
   tag: EvidenceTag;
@@ -500,6 +512,41 @@ export interface BaselineComparison {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// View helpers (views.ts) — what sections consume
+// ─────────────────────────────────────────────────────────────────────────────
+export interface RouterSnapshot {
+  mode: ControllerMode;
+  pumpOn: boolean;
+  valves: Record<Sink, number>;
+  allocW: Record<Sink, number>;
+  tankSoc: number;
+  tankTopC: number;
+  reason: RouterReason;
+}
+
+export interface ModeBand {
+  mode: ControllerMode;
+  t0: number;
+  t1: number;
+}
+
+/** Presentation / UI mode targets: a condition (scenario + time), NOT a promised outcome. */
+export type ModeTarget = 'A' | 'B' | 'C';
+
+/** Indonesian labels for every slug shown in the UI. */
+export interface LabelMaps {
+  mode: Record<ControllerMode, string>;
+  modeTarget: Record<ModeTarget, string>;
+  sink: Record<Sink, string>;
+  reason: Record<RouterReason, string>;
+  verdict: Record<Verdict, string>;
+  evidence: Record<EvidenceTag, string>;
+  scenario: Record<DayScenarioId, string>;
+  strategy: Record<RouterStrategy, string>;
+  baseline: Record<BaselineId, string>;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Public v2 API — implemented by the module owners, re-exported by ./index.ts (lead)
 // ─────────────────────────────────────────────────────────────────────────────
 // hotel.ts      (W2a): DEFAULT_SYSTEM: SystemInputs; HOTEL_PRESETS: Record<'hotel-100'|'penginapan-kecil', HotelParams>;
@@ -522,3 +569,7 @@ export interface BaselineComparison {
 //                      heatUseValues(sys: SystemInputs, x: { desiccant: DesiccantEval; pvGainWePerWth: number }): HeatUseValue[]
 // economics.ts  (W4) : economicsFor(sys: SystemInputs, ledger: CarbonLedger, b: BaselineInputs): EconomicsResult
 // assumptions/<module>.ts (owner of the module): export const <MODULE>_ASSUMPTIONS: AssumptionEntry[]
+// views.ts      (W11): LABELS: LabelMaps; MODE_TARGETS: Record<ModeTarget, { scenario: DayScenarioId; hour: number }>;
+//                      stepAt(day, t): DayStep (interpolated); routerSnapshot(step): RouterSnapshot; modeBands(day): ModeBand[];
+//                      pumpStarts(day): number; stackedAlloc(day); desiccantInputFor(sys, scenario, t, regenAir);
+//                      pvGainWePerWth(sys); finiteOrNull(x); createSystemView(sys) (memoised lazy tiers)
