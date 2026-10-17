@@ -2,9 +2,6 @@
  * The app-wide visual clock (singleton), now bound to the v2 system store by an external subscription (the store
  * needs no change). Components only read `weather.frame()` / the hooks; this is a deliberate exception to "views
  * never call the sim directly": the engine calls simulate() on every animation step.
- *
- * The v1 `createWeatherEngine` (weather.ts) is kept for its tests and the v1 helpers until the cutover; nothing
- * mounts it any more, so the v1 Cerah / Hujan switch no longer drives the stage.
  */
 import { bindSystemEngine, targetFromState } from '../state/systemEngineBinding';
 import { useSystemStore } from '../state/system';
