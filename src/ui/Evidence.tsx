@@ -50,7 +50,7 @@ export function Evidence({ tag, refId, label = false, inverse, cite = false, cla
       <span
         tabIndex={0}
         aria-label={content}
-        className={cx('inline-flex items-center gap-1.5 align-[0.05em] text-[12px] leading-4', inverse ? 'text-white/60' : 'text-ink-2', className)}
+        className={cx('inline-flex items-center gap-1.5 rounded-xs align-[0.05em] text-[12px] leading-4 outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2', inverse ? 'text-white/60' : 'text-ink-2', className)}
       >
         <EvidenceDot tag={tag} />
         {label ? <span className="num">{text}</span> : null}

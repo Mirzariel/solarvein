@@ -59,7 +59,12 @@ export function Disclosure({ title, hint, children, defaultOpen = false, open, o
         >
           <span className="min-w-0 text-body font-medium text-ink">{title}</span>
           <span className="flex shrink-0 items-center gap-3">
-            {hint ? <span className="hidden text-small text-ink-2 sm:inline">{hint}</span> : null}
+            {hint ? (
+              <span className="hidden text-small text-ink-2 sm:inline">
+                <span className="sr-only"> — </span>
+                {hint}
+              </span>
+            ) : null}
             <ChevronIcon
               size={16}
               direction="down"

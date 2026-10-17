@@ -107,7 +107,7 @@ export function InfoTip({ children, label = 'Keterangan', side = 'top', tone = '
         type="button"
         aria-label={label}
         className={cx(
-          "relative inline-flex size-4 items-center justify-center rounded-xs transition-ui after:absolute after:-inset-3 after:content-[''] pointer-coarse:after:-inset-3.5",
+          "relative inline-flex size-4 items-center justify-center rounded-xs transition-ui after:absolute after:-inset-3 after:content-[''] pointer-coarse:after:-inset-[14px]",
           tone === 'stage' ? 'text-stage-ink-2 hover:text-stage-ink' : 'text-ink-3 hover:text-ink',
         )}
       >
