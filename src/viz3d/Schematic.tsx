@@ -13,7 +13,7 @@
  * fallback = `CutawayFallback`).
  */
 import { useId } from 'react';
-import { referenceResult } from '../sim';
+import { useVisualSelect } from '../motion/hooks';
 import { formatId } from './fmt';
 import { fluidProgress, rampHex, rampPosition } from './palette';
 import { PARTS, type PartId } from './parts';
@@ -107,9 +107,32 @@ function Arrow({ x, y, len, color, width = 3 }: { x: number; y: number; len: num
   );
 }
 
+/** The slice of the live visual frame the schematic draws (the pump state is the ROUTER's, so it follows A/B/C). */
+interface LiveSnap {
+  pumpOn: boolean;
+  tin: number;
+  tout: number;
+  cell: number;
+  q: number;
+  ntu: number;
+}
+const snapEq = (a: LiveSnap, b: LiveSnap): boolean =>
+  a.pumpOn === b.pumpOn && a.tin === b.tin && a.tout === b.tout && a.cell === b.cell && a.q === b.q && a.ntu === b.ntu;
+
 export function Schematic({ tone, compact = false, highlight = null, className }: SchematicProps) {
   const t = THEMES[tone];
-  const r = referenceResult();
+  const live = useVisualSelect<LiveSnap>(
+    (f) => ({
+      pumpOn: f.result.pumpOn && (f.router?.pumpOn ?? true),
+      tin: f.result.inletC,
+      tout: f.result.outletC,
+      cell: f.result.cellC,
+      q: f.result.qLiquidW,
+      ntu: f.result.coefficients.ntu,
+    }),
+    10,
+    snapEq,
+  );
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
 
   // compact = simplified mobile variant: narrower viewBox so the text stays >= 12 px on a 340 px stage
@@ -139,12 +162,8 @@ export function Schematic({ tone, compact = false, highlight = null, className }
   const yFrameBottom = yBack + hBack + 4;
   const wall = 14;
 
-  const tin = r.inletC;
-  const tout = r.outletC;
+  const { tin, tout, ntu, pumpOn, q } = live;
   const mean = (tin + tout) / 2;
-  const ntu = r.coefficients.ntu;
-  const pumpOn = r.pumpOn;
-  const q = r.qLiquidW;
   const heatOn = pumpOn && q > MIN_Q; // harvest only: heat goes cell -> liquid, never the other way
   const heatColor = t.heat;
 
@@ -175,9 +194,11 @@ export function Schematic({ tone, compact = false, highlight = null, className }
   );
 
   const harvestText = 'Panas ke cairan';
-  const descr = `Penampang kolektor PVT. Cairan masuk ${formatId(tin, 1)} °C, keluar ${formatId(tout, 1)} °C, selalu mengalir dari masuk ke keluar. ${
-    heatOn ? 'Panas mengalir dari sel ke cairan.' : pumpOn ? 'Panen panas kecil.' : 'Pompa mati, tidak ada panen panas.'
-  } Suhu sel ${formatId(r.cellC, 1)} °C.`;
+  const descr = pumpOn
+    ? `Penampang kolektor PVT. Cairan masuk ${formatId(tin, 1)} °C, keluar ${formatId(tout, 1)} °C, selalu mengalir dari masuk ke keluar. ${
+        heatOn ? 'Panas mengalir dari sel ke cairan.' : 'Panen panas kecil.'
+      } Suhu sel ${formatId(live.cell, 1)} °C.`
+    : 'Penampang kolektor PVT. Pompa diam: cairan tidak mengalir dan tidak ada panen panas.';
 
   return (
     <svg viewBox={`0 0 ${VB_W} ${VB_H}`} preserveAspectRatio="xMidYMid meet" className={className ?? 'h-full w-full'} role="img" aria-labelledby={`${uid}t ${uid}d`}>
@@ -252,9 +273,13 @@ export function Schematic({ tone, compact = false, highlight = null, className }
         : null}
 
       {/* temperatures (mono; "Masuk" / "Keluar", no raw underscores) */}
-      {valueLine(x0 + wall + 8, yTube + hTube + 19, 'Masuk', tin)}
-      {valueLine(x1 - wall - 8, yTube + hTube + 19, 'Keluar', tout, 'end')}
-      {valueLine(compact ? x0 + wall + 8 : (x0 + x1) / 2, yTube + hTube + (compact ? 40 : 19), 'Sel', r.cellC, compact ? 'start' : 'middle')}
+      {pumpOn ? (
+        <>
+          {valueLine(x0 + wall + 8, yTube + hTube + 19, 'Masuk', tin)}
+          {valueLine(x1 - wall - 8, yTube + hTube + 19, 'Keluar', tout, 'end')}
+          {valueLine(compact ? x0 + wall + 8 : (x0 + x1) / 2, yTube + hTube + (compact ? 40 : 19), 'Sel', live.cell, compact ? 'start' : 'middle')}
+        </>
+      ) : null}
 
       {/* heat caption (below the frame so it never meets the arrows) */}
       {heatOn ? (
@@ -269,7 +294,7 @@ export function Schematic({ tone, compact = false, highlight = null, className }
         </text>
       ) : !pumpOn ? (
         <text x={x0 + wall + 8} y={yFrameBottom + (compact ? 24 : 26)} fontFamily={SANS} fontSize={fs} fill={t.ink2}>
-          Pompa mati
+          Pompa diam
         </text>
       ) : null}
 
