@@ -18,6 +18,14 @@ export function WeatherSky({ className }: { className?: string }) {
   const dawn = useRef<HTMLDivElement>(null);
   const sun = useRef<HTMLDivElement>(null);
   const night = useRef<HTMLDivElement>(null);
+  const root = useRef<HTMLDivElement>(null);
+
+  // The sky sits at a negative z-index; `body` paints its own paper background OVER negative layers of the root
+  // stacking context, so the host band must be an isolated stacking context for the sky to show.
+  useEffect(() => {
+    const host = root.current?.parentElement;
+    if (host && getComputedStyle(host).isolation !== 'isolate') host.style.isolation = 'isolate';
+  }, []);
 
   useEffect(() => {
     const apply = (f: VisualFrame): void => {
@@ -33,7 +41,7 @@ export function WeatherSky({ className }: { className?: string }) {
   }, []);
 
   return (
-    <div aria-hidden="true" className={className}>
+    <div ref={root} aria-hidden="true" className={className}>
       <div ref={rain} className="sky-rainy absolute inset-0" />
       <div ref={dawn} className="absolute inset-0 opacity-0" style={{ backgroundImage: DAWN_BG }} />
       <div ref={sun} className="sky-sunny absolute inset-0" />

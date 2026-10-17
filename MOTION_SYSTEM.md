@@ -4,6 +4,8 @@ Code: `src/motion/**` (engine, tokens, hooks), `src/viz3d/effects/**` (3D effect
 and `src/sections/hero/**`. Evidence and the original defect list: `docs/audit/06-motion.md`, transition frames and numbers
 in `docs/audit/motion/`. Physics (`src/sim/**`) is untouched. Copy follows `docs/audit/07-creative-direction-v2.md`.
 
+> v2 (Wave 2): the visual clock now follows the v2 system store; see `docs/MOTION-v2.md`. Sections 3-5 describe the v1 Cerah/Hujan engine (`weather.ts`, kept for its tests until the cutover).
+
 ## 1. Principles
 One clock for 3D, numbers, text and page sky. Every frame is a real computed state (`simulate()` on interpolated inputs).
 The model decides direction, never a mode flag. Continuity and object identity (same scene, same camera, same panel on every
