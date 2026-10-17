@@ -37,7 +37,6 @@ export const HASH_ALIASES: Record<string, string> = {
   pengalaman: 'sistem',
   'di-dalam': 'sistem-dalam',
   perbandingan: 'dampak',
-  'lab-rincian': 'lab',
 };
 
 export const resolveHash = (id: string): string => HASH_ALIASES[id] ?? id;

@@ -229,7 +229,8 @@ export type RouterReason =
   | 'isi-tangki'
   | 'regenerasi-desikan'
   | 'desikan-terlalu-dingin'
-  | 'tangki-penuh-bypass'
+  | 'tangki-penuh-bypass' // tank truly full (SoC near max)
+  | 'fluida-belum-cukup-panas' // charge fluid not warm enough for the tank → dry cooler (cells cooler)
   | 'jadwal-tetap'
   | 'lepas-simpanan'; // mode C/B: tank discharges to DHW
 

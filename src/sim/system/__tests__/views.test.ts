@@ -199,7 +199,7 @@ describe('LABELS', () => {
     expect(count(LABELS.mode)).toBe(3);
     expect(count(LABELS.modeTarget)).toBe(3);
     expect(count(LABELS.sink)).toBe(4);
-    expect(count(LABELS.reason)).toBe(8);
+    expect(count(LABELS.reason)).toBe(9);
     expect(count(LABELS.verdict)).toBe(3);
     expect(count(LABELS.evidence)).toBe(6);
     expect(count(LABELS.scenario)).toBe(4);
@@ -219,7 +219,7 @@ describe('LABELS', () => {
 
   it('uses the verbatim fixed strings', () => {
     expect(LABELS.verdict['tidak-layak']).toBe('Tidak layak');
-    expect(LABELS.sink.bypass).toBe('Tidak dipakai (sel lebih dingin)');
+    expect(LABELS.sink.bypass).toBe('Tidak dipakai (bypass)');
     expect(DESICCANT_STATUS).toBe('Hipotesis riset · belum divalidasi');
     expect(SIM_BADGE).toBe('Simulasi · belum ada data ukur');
     expect(DESICCANT_NOT_BENEFICIAL).toBe('Desikan tidak menguntungkan pada kondisi ini.');
