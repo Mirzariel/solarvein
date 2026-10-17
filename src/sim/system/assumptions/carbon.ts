@@ -89,7 +89,7 @@ export const CARBON_ASSUMPTIONS: AssumptionEntry[] = [
     id: 'carbon-embodied',
     title: 'Emisi tertanam peralatan',
     body: 'Dibagi umur pakai (20 tahun) dan dibebankan setiap tahun. Tidak pernah nol: kolektor PV/T per m², BOS (router, tangki, penukar kalor, pengendali), PV standar per kWp, pemanas pompa kalor dan kit pemulihan kondensor. Pemanas dan AC hotel yang sudah ada sama di semua kasus sehingga tidak dihitung.',
-    value: 'PV/T 300 kg/m²; PV 1.000 kg/kWp; BOS 600 kg',
+    value: 'PV/T 300 kg/m²; PV 1.000 kg/kWp; BOS 2.000 kg',
     tag: 'asumsi',
     refId: CARBON_REF.pvtEmbodied,
   },
