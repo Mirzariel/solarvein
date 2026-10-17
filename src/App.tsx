@@ -95,31 +95,31 @@ export default function App() {
         <ErrorBoundary label="Sistem">
           <Hero />
         </ErrorBoundary>
-        <Lazy id="sistem-dalam" minH="80svh">
+        <Lazy id="sistem-dalam" minH="clamp(1000px, calc(1000px + (100vw - 390px) * 1.6190), 2700px)">
           <Inside />
         </Lazy>
-        <Lazy id="jeda" minH="100svh">
+        <Lazy id="jeda" minH="clamp(743px, calc(743px + (100vw - 390px) * 0.0467), 792px)">
           <Interlude />
         </Lazy>
-        <Lazy id="router" minH="100svh">
+        <Lazy id="router" minH="clamp(1886px, calc(1886px + (100vw - 390px) * 1.2667), 3216px)">
           <RouterSection />
         </Lazy>
-        <Lazy id="sehari" minH="90svh">
+        <Lazy id="sehari" minH="clamp(1426px, calc(1936px + (100vw - 390px) * -0.4857), 1936px)">
           <DayAtHotel />
         </Lazy>
-        <Lazy id="jeda-lembap" minH="60svh">
+        <Lazy id="jeda-lembap" minH="clamp(600px, calc(600px + (100vw - 390px) * 0.0286), 630px)">
           <InterludeHumid />
         </Lazy>
-        <Lazy id="desikan" minH="80svh">
+        <Lazy id="desikan" minH="clamp(1146px, calc(1174px + (100vw - 390px) * -0.0267), 1174px)">
           <Desiccant />
         </Lazy>
-        <Lazy id="dampak" minH="80svh">
+        <Lazy id="dampak" minH="clamp(1993px, calc(2367px + (100vw - 390px) * -0.3562), 2367px)">
           <Impact />
         </Lazy>
-        <Lazy id="lab" minH="80svh">
+        <Lazy id="lab" minH="clamp(4062px, calc(5831px + (100vw - 390px) * -1.6848), 5831px)">
           <Lab />
         </Lazy>
-        <Lazy id="validasi" minH="60svh">
+        <Lazy id="validasi" minH="clamp(1694px, calc(2406px + (100vw - 390px) * -0.6781), 2406px)">
           <Validation />
         </Lazy>
         <ErrorBoundary label="Penutup">
