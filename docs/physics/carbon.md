@@ -19,7 +19,7 @@ Modul: `src/sim/system/carbon.ts`, `economics.ts`; asumsi di `assumptions/{carbo
 - Rugi diam tangki sudah ada di dalam energi surya terpakai (beban cadangan lebih besar). Baris `rugi-diam` bernilai 0 dan hanya informasi, agar tidak terhitung dua kali.
 
 ## Baris buku besar
-`listrik-pv` · `kalor-air-panas` · `selisih-pemanas-b2` (hanya B2) · `parasit` · `pompa-kalor-sumber` · `tertanam-{pvt,bos,pv,hpwh,kit}` · `rugi-diam` · `desikan-hvac` dan `desikan-tertanam` (**dikecualikan dari headline**, tag hipotesis).
+`listrik-pv` · `kalor-air-panas` (B2: satu baris, kalor surya + cadangan dibanding listrik HPWH) · `parasit` · `pompa-kalor-sumber` · `tertanam-{pvt,bos,pv,hpwh,kit}` · `rugi-diam` · `desikan-hvac` dan `desikan-tertanam` (**dikecualikan dari headline**, tag hipotesis).
 `netKgPerYear` = Σ baris headline = `grossAvoided − embodied − parasitic` (embodied dan parasitic dilaporkan sebagai besaran penalti positif).
 
 ## Emisi tertanam (tidak pernah nol)
@@ -35,7 +35,10 @@ Penghematan = biaya energi X − biaya energi SolarVein (tarif listrik; LPG: kWh
 LPG: 0,227/η; HPWH: EF/COP; tahanan listrik: EF/η; desikan: (hemat AC bersih / kalor regenerasi) × EF (bisa ≤ 0); PV lebih dingin: ΔP_PV per W_th × EF. Daftar diurutkan menurun; urutannya hasil hitung, bukan klaim.
 
 ## Vonis
-Kalimat Indonesia dibangkitkan dari angka: tiap pembanding mendapat satu klausa (SolarVein menghindari / pembanding lebih unggul / selisih hampir nol) dengan baris pendorong terbesar. Tidak ada pemenang bawaan.
+Kalimat Indonesia dari angka: B2 sebagai pembanding utama, B1 sebagai konteks, lalu B3 dan B4. Tiap klausa memuat baris pendorong terbesar. Bila karbon dan uang berlawanan arah (mis. lebih rendah emisi dari B2 tetapi tidak balik modal karena LPG cadangan lebih mahal per kWh_th daripada listrik HPWH) kalimat menyatakannya. `b4BreakEvenFraction(sys, b)` memberi pecahan pemulihan kondensor yang membuat net vs B4 = 0 (net linear terhadap pecahan); `null` bila di luar 0–1. Tidak ada pemenang bawaan.
+
+## COP after-cooler
+Bawaan 4,5 vs koil acuan 3,0 (rasio 1,5; pita 1,3–2,0); impas desikan ≈ 1,3–1,35 (desiccant.ts).
 
 ## Belum bersumber (TODO R0)
 EF jaringan (tahun/wilayah), faktor LPG IPCC, COP HPWH, emisi tertanam PV/PV-T/BOS/HPWH/kit, fraksi pemulihan kondensor, NCV LPG, tarif, harga LPG, capex.

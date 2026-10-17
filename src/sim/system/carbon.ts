@@ -36,6 +36,7 @@ import {
   PV_KWP_PER_M2,
 } from './assumptions/carbon';
 import { economicsFor } from './economics';
+import { LPG_NCV_KWH_PER_KG } from './assumptions/economics';
 
 const fin = (x: number | undefined, fallback = 0): number => (typeof x === 'number' && Number.isFinite(x) ? x : fallback);
 const nn = (x: number | undefined): number => Math.max(0, fin(x));
@@ -216,37 +217,41 @@ export function ledgerFor(sys: SystemInputs, b: BaselineInputs, id: BaselineId):
     tag: 'simulasi',
   });
 
-  // 2) Kalor air panas. Acuan: kalor yang dibebankan ke pemanas hotel di pembanding (B2 dihitung seperti B1,
-  //    lalu baris selisih pemanas menyesuaikan karena B2 memakai pompa kalor).
-  const refBackup = id === 'B2' ? demand : x.heaterKWhTh;
-  const dHeat = refBackup - sv.heaterKWhTh;
-  rows.push({
-    id: 'kalor-air-panas',
-    label:
-      id === 'B3'
-        ? 'Selisih kalor surya terhadap PV/T hanya air panas'
-        : id === 'B4'
-          ? 'Selisih kalor surya terhadap pemulihan kondensor'
-          : 'Kalor surya menggantikan pemanas hotel',
-    kind: 'avoided',
-    kgPerYear: dHeat * h.kgPerKWhTh,
-    energy: {
-      kWhTh: kWhTh(dHeat),
-      ...(h.basis === 'lpg' ? { kWhFuel: kWhFuel(dHeat * h.fuelPerKWhTh) } : { kWhE: kWhE(dHeat * h.elecPerKWhTh) }),
-    },
-    factor: { value: h.kgPerKWhTh, unit: 'kgCO₂e/kWh_th', refId: h.refId },
-    tag: 'simulasi',
-  });
+  // 2) Kalor air panas.
   if (id === 'B2') {
-    // B2 menyalurkan SELURUH kebutuhan lewat pompa kalor: lebih hemat dari pemanas hotel, sehingga mengurangi kredit surya.
+    // B2 melayani SELURUH kebutuhan dengan listrik pompa kalor (HPWH); SolarVein memakai kalor surya + cadangan pemanas hotel.
+    // Selisih = D·(EF/COP) − cadangan_SV·f_pemanas. Pada tutupan surya penuh ini = D·EF/COP (kredit per kWh_th = EF/COP).
     const fHp = ef / hpwhCopOf(c);
     rows.push({
-      id: 'selisih-pemanas-b2',
-      label: 'Pompa kalor B2 lebih efisien daripada pemanas hotel',
+      id: 'kalor-air-panas',
+      label: `Selisih air panas (kalor surya + cadangan ${h.basis === 'lpg' ? 'LPG' : 'listrik'} dibanding listrik pompa kalor B2)`,
       kind: 'avoided',
-      kgPerYear: -demand * (h.kgPerKWhTh - fHp),
-      energy: { kWhTh: kWhTh(demand) },
-      factor: { value: h.kgPerKWhTh - fHp, unit: 'kgCO₂e/kWh_th (selisih)', refId: CARBON_REF.hpwhCop },
+      kgPerYear: demand * fHp - sv.heaterKWhTh * h.kgPerKWhTh,
+      energy: {
+        kWhTh: kWhTh(demand),
+        kWhE: kWhE(demand / hpwhCopOf(c)), // listrik HPWH B2
+        ...(h.basis === 'lpg' ? { kWhFuel: kWhFuel(sv.heaterKWhTh * h.fuelPerKWhTh) } : {}), // bahan bakar cadangan SolarVein
+      },
+      factor: { value: fHp, unit: 'kgCO₂e/kWh_th (listrik HPWH = EF/COP)', refId: CARBON_REF.hpwhCop },
+      tag: 'simulasi',
+    });
+  } else {
+    const dHeat = x.heaterKWhTh - sv.heaterKWhTh;
+    rows.push({
+      id: 'kalor-air-panas',
+      label:
+        id === 'B3'
+          ? 'Selisih kalor surya terhadap PV/T hanya air panas'
+          : id === 'B4'
+            ? 'Selisih kalor surya terhadap pemulihan kondensor'
+            : 'Kalor surya menggantikan pemanas hotel',
+      kind: 'avoided',
+      kgPerYear: dHeat * h.kgPerKWhTh,
+      energy: {
+        kWhTh: kWhTh(dHeat),
+        ...(h.basis === 'lpg' ? { kWhFuel: kWhFuel(dHeat * h.fuelPerKWhTh) } : { kWhE: kWhE(dHeat * h.elecPerKWhTh) }),
+      },
+      factor: { value: h.kgPerKWhTh, unit: 'kgCO₂e/kWh_th', refId: h.refId },
       tag: 'simulasi',
     });
   }
@@ -376,30 +381,88 @@ function dominantRow(l: CarbonLedger, sign: 1 | -1): LedgerRow | undefined {
   return best;
 }
 
-export function verdictFor(ledgers: Record<BaselineId, CarbonLedger>, desiccantActive = false): string {
-  const parts: string[] = [];
-  (['B1', 'B2', 'B3', 'B4'] as BaselineId[]).forEach((id) => {
+/**
+ * Pecahan pemulihan kondensor (B4) di mana net terhadap B4 = 0 (impas). Net linear terhadap pecahan
+ * (emisi tertanam kit tetap), jadi dihitung dari dua evaluasi. Mengembalikan null bila tidak ada impas di [0, 1]
+ * (SolarVein unggul walau tanpa pemulihan, B4 tetap kalah walau menutup seluruhnya, atau net tidak bergantung pada pecahan).
+ */
+export function b4BreakEvenFraction(sys: SystemInputs, b: BaselineInputs): number | null {
+  const at = (f: number): number =>
+    ledgerFor({ ...sys, carbon: { ...sys.carbon, condenserRecoveryFraction: f } }, b, 'B4').netKgPerYear;
+  const n0 = at(0);
+  const n1 = at(1);
+  const slope = n1 - n0;
+  if (!(Math.abs(slope) > 1e-9)) return null;
+  const f = -n0 / slope;
+  return f >= 0 && f <= 1 && Number.isFinite(f) ? f : null;
+}
+
+const fmtJuta = (idr: number): string => `Rp${fmt(Math.abs(idr) / 1e6, 1)} juta`;
+
+/** Arah karbon dan uang bertolak belakang? (+1 = SolarVein lebih baik, −1 = pembanding lebih baik, 0 = hampir sama). */
+function dirOf(x: number, eps: number): -1 | 0 | 1 {
+  return x > eps ? 1 : x < -eps ? -1 : 0;
+}
+
+/**
+ * Kalimat vonis dari angka (tanpa pemenang bawaan). Urutan: B2 sebagai pembanding utama yang jujur, B1 sebagai konteks,
+ * lalu B3 dan B4 (dengan titik impas pemulihan kondensor). Bila karbon dan uang menunjuk arah berlawanan, dinyatakan eksplisit.
+ */
+export function verdictFor(
+  sys: SystemInputs,
+  ledgers: Record<BaselineId, CarbonLedger>,
+  economics: BaselineComparison['economics'],
+  b: BaselineInputs,
+): string {
+  const h = heaterRates(sys.hotel, sys.carbon);
+  const clause = (id: BaselineId, prefix: string): string => {
     const l = ledgers[id];
     const net = fin(l.netKgPerYear);
-    const lead = 'Dibanding';
+    let t: string;
     if (Math.abs(net) < NEAR_ZERO_KG_PER_YEAR) {
-      parts.push(`${lead} ${NAMA[id]}, selisih CO₂e hampir nol (di bawah ${fmt(NEAR_ZERO_KG_PER_YEAR, 0)} kg/tahun)`);
+      t = `${prefix}selisih CO₂e hampir nol (di bawah ${fmt(NEAR_ZERO_KG_PER_YEAR, 0)} kg/tahun)`;
     } else if (net > 0) {
       const why = dominantRow(l, 1);
-      parts.push(
-        `${lead} ${NAMA[id]}, SolarVein menghindari ~${fmtTon(net)} t CO₂e/tahun` +
-          (why ? `, terutama dari ${lcFirst(why.label)}` : ''),
-      );
+      t = `${prefix}SolarVein menghindari ~${fmtTon(net)} t CO₂e/tahun` + (why ? `, terutama dari ${lcFirst(why.label)}` : '');
     } else {
       const why = dominantRow(l, -1);
-      parts.push(
-        `${lead} ${NAMA[id]}, ${id} lebih unggul ~${fmtTon(net)} t CO₂e/tahun` +
-          (why ? `, terutama karena ${lcFirst(why.label)}` : ''),
-      );
+      t = `${prefix}${id} lebih unggul ~${fmtTon(net)} t CO₂e/tahun` + (why ? `, terutama karena ${lcFirst(why.label)}` : '');
     }
-  });
+    // Karbon vs uang: bila berlawanan, katakan.
+    const saving = fin(economics[id].annualSavingIdr);
+    const cDir = dirOf(net, NEAR_ZERO_KG_PER_YEAR);
+    const mDir = dirOf(saving, 1_000);
+    if (cDir !== 0 && mDir !== 0 && cDir !== mDir) {
+      if (cDir > 0) {
+        let cause = '';
+        if (id === 'B2' && h.basis === 'lpg') {
+          const lpgCost = (fin(sys.economics.lpgPriceIdrPerKg) / LPG_NCV_KWH_PER_KG) * h.fuelPerKWhTh;
+          const hpCost = fin(sys.economics.gridTariffIdrPerKWh) / hpwhCopOf(sys.carbon);
+          if (lpgCost > hpCost) cause = ', karena cadangan LPG lebih mahal per kWh_th daripada listrik pompa kalor';
+        }
+        t += `. Namun secara biaya arahnya berlawanan: biaya tahunan SolarVein lebih tinggi ~${fmtJuta(saving)} dibanding ${NAMA[id]}${cause}, sehingga tidak balik modal`;
+      } else {
+        t += `. Namun secara biaya arahnya berlawanan: SolarVein lebih murah ~${fmtJuta(saving)}/tahun dibanding ${NAMA[id]} walau emisinya lebih tinggi`;
+      }
+    }
+    return t;
+  };
+
+  const parts: string[] = [];
+  parts.push(clause('B2', `Pembanding utama ${NAMA.B2}: `));
+  parts.push(clause('B1', `Sebagai konteks, dibanding ${NAMA.B1}, `));
+  parts.push(clause('B3', `Dibanding ${NAMA.B3}, `));
+  let b4 = clause('B4', `Dibanding ${NAMA.B4}, `);
+  const f0 = Math.min(1, nn(sys.carbon.condenserRecoveryFraction));
+  const fStar = b4BreakEvenFraction(sys, b);
+  if (fStar !== null) {
+    b4 += `. Titik impas B4: pemulihan kondensor menutup ~${fmt(fStar * 100, 0)} % kebutuhan air panas (asumsi ${fmt(f0 * 100, 0)} %)`;
+  } else {
+    b4 += `. Tidak ada titik impas B4 pada pemulihan 0–100 % kebutuhan air panas`;
+  }
+  parts.push(b4);
   let s = parts.join('. ') + '.';
-  if (desiccantActive) s += ' Jalur desikan (hipotesis riset) tidak dihitung dalam angka ini.';
+  if (sys.desiccant.enabled) s += ' Jalur desikan (hipotesis riset) tidak dihitung dalam angka ini.';
   return s;
 }
 
@@ -415,7 +478,7 @@ export function compareBaselines(sys: SystemInputs, b: BaselineInputs): Baseline
     economics[id] = economicsFor(sys, ledgers[id], b);
   }
   // Baris desikan tidak pernah masuk net; kalimat menyebut pengecualiannya hanya bila jalur desikan aktif.
-  return { ledgers, economics, verdict: verdictFor(ledgers, sys.desiccant.enabled) };
+  return { ledgers, economics, verdict: verdictFor(sys, ledgers, economics, b) };
 }
 
 /**

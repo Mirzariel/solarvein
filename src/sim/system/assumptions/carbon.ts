@@ -39,9 +39,9 @@ export const DEFAULT_CARBON_PARAMS: CarbonParams = {
   lpgKgPerKWhFuel: 0.227,
   hpwhCop: 3.5,
   coilRefCop: 3.0,
-  // Sensible-only after-cooler can run its evaporator ~8–10 K warmer than a dehumidifying coil (~3 %/K)
-  // → COP ratio ≈ 1,3. Optimistic ratios (≥ 1,6) flatter the desiccant; keep conservative (asumsi, council P0-1).
-  aftercoolerCop: 3.9,
+  // After-cooler sensibel saja: evaporator ~16 °C vs ~5 °C untuk koil pengering → rasio COP 1,5 (konsisten Carnot).
+  // Pita sensitivitas rasio 1,3–2,0; impas desikan ≈ 1,3–1,35 (dihitung di desiccant.ts, breakEvenCopRatio).
+  aftercoolerCop: 4.5,
   embodiedPvtKgPerM2: 300,
   embodiedPvKgPerKWp: 1000,
   // hotel scale: ~5 m³ insulated steel buffer tank + HX + valves + piping + controller (asumsi, R0/council to review)
@@ -102,6 +102,13 @@ export const CARBON_ASSUMPTIONS: AssumptionEntry[] = [
     value: '85 % dari BOS SolarVein',
     tag: 'asumsi',
     refId: CARBON_REF.bosEmbodied,
+  },
+  {
+    id: 'carbon-aftercooler-cop',
+    title: 'COP after-cooler desikan',
+    body: 'After-cooler hanya menurunkan suhu sensibel udara kering yang keluar panas dari hamparan, sehingga evaporatornya dapat bekerja sekitar 16 °C, bukan sekitar 5 °C seperti koil pengering acuan. Rasio COP terhadap koil acuan dipilih 1,5 (konsisten Carnot) dan diuji pada pita 1,3–2,0. Rasio impas desikan terhadap koil acuan sekitar 1,3–1,35 (dihitung di desiccant.ts), jadi hasil desikan peka terhadap asumsi ini.',
+    value: 'COP 4,5 vs koil acuan 3,0 (rasio 1,5; pita 1,3–2,0)',
+    tag: 'asumsi',
   },
   {
     id: 'carbon-b4',

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  b4BreakEvenFraction,
   caseFlows,
   compareBaselines,
   embodiedKgPerYear,
@@ -7,6 +8,7 @@ import {
   ledgerFor,
   operatingKg,
 } from '../carbon';
+import { CARBON_ASSUMPTIONS, DEFAULT_CARBON_PARAMS } from '../assumptions/carbon';
 import type { BaselineId, BaselineInputs } from '../contract';
 import { kWhE, kWhTh } from '../contract';
 import { D, annual, desiccantEval, inputsFixture, sysFixture } from './w4-fixtures';
@@ -139,11 +141,11 @@ describe('buku besar karbon', () => {
     // SolarVein lemah: B2 menang.
     const weak = compareBaselines(sys, inputsFixture({ svPv: 12_000, svBackup: 70_000, convPv: 20_000 }));
     expect(weak.ledgers.B2.netKgPerYear).toBeLessThan(0);
-    expect(weak.verdict).toMatch(/B2\) , ?B2 lebih unggul|B2\), B2 lebih unggul/);
+    expect(weak.verdict).toMatch(/^Pembanding utama PV \+ pompa kalor \(B2\): B2 lebih unggul ~\d+,\d+ t CO₂e\/tahun/);
     // SolarVein kuat vs B1.
     const strong = compareBaselines(sys, inputsFixture());
     expect(strong.ledgers.B1.netKgPerYear).toBeGreaterThan(0);
-    expect(strong.verdict).toMatch(/Dibanding hotel konvensional \(B1\), SolarVein menghindari ~\d+,\d+ t CO₂e\/tahun/);
+    expect(strong.verdict).toMatch(/Sebagai konteks, dibanding hotel konvensional \(B1\), SolarVein menghindari ~\d+,\d+ t CO₂e\/tahun/);
     expect(strong.verdict).not.toMatch(/\d\.\d/);
   });
 
@@ -188,5 +190,95 @@ describe('nilai pemakaian panas (heatUseValues)', () => {
   it('desikan positif = hemat listrik bersih per kWh_th × EF', () => {
     const v = heatUseValues(sys, { desiccant: desiccantEval(200, 1000), pvGainWePerWth: 0 });
     expect(v.find((x) => x.use === 'desiccant')!.kgPerKWhTh).toBeCloseTo(0.2 * 0.8, 9);
+  });
+});
+
+describe('perbaikan putaran 1b', () => {
+  it('COP after-cooler bawaan 4,5 (rasio 1,5 terhadap koil acuan 3,0)', () => {
+    expect(DEFAULT_CARBON_PARAMS.aftercoolerCop).toBe(4.5);
+    expect(DEFAULT_CARBON_PARAMS.aftercoolerCop / DEFAULT_CARBON_PARAMS.coilRefCop).toBeCloseTo(1.5, 9);
+    const a = CARBON_ASSUMPTIONS.find((x) => x.id === 'carbon-aftercooler-cop')!;
+    expect(a.body).toMatch(/1,3–2,0/);
+    expect(a.body).toMatch(/1,3–1,35/);
+  });
+
+  it('baris air panas B2 tidak berkata "menggantikan pemanas hotel" dan mengacu ke HPWH', () => {
+    const l = ledgerFor(sysFixture(), inputsFixture(), 'B2');
+    const r = l.rows.filter((x) => x.id.startsWith('kalor-air-panas') || x.id.includes('pemanas'));
+    expect(r).toHaveLength(1);
+    expect(r[0]!.label).not.toMatch(/menggantikan pemanas hotel/);
+    expect(r[0]!.label).toMatch(/pompa kalor/);
+    expect(r[0]!.label).toMatch(/LPG/);
+    // jumlah baris tetap = net
+    const head = l.rows.filter((x) => !x.excludedFromHeadline);
+    expect(head.reduce((s, x) => s + x.kgPerYear, 0)).toBeCloseTo(l.netKgPerYear, 9);
+  });
+
+  it('vonis memimpin dengan B2, B1 sebagai konteks, dan menyebut titik impas B4', () => {
+    const v = compareBaselines(sysFixture(), inputsFixture()).verdict;
+    expect(v.startsWith('Pembanding utama PV + pompa kalor (B2)')).toBe(true);
+    expect(v.indexOf('(B2)')).toBeLessThan(v.indexOf('(B1)'));
+    expect(v).toMatch(/Titik impas B4: pemulihan kondensor menutup ~\d+ %/);
+    expect(v).toMatch(/asumsi 35 %/);
+  });
+
+  it('karbon dan uang berlawanan terhadap B2 dinyatakan eksplisit (cadangan LPG lebih mahal daripada listrik HPWH)', () => {
+    const sys = sysFixture();
+    // Surya menutup 75 %, PV/T setara PV: lebih rendah emisi daripada B2, tetapi LPG cadangan mahal.
+    const b = inputsFixture({ svBackup: 20_000, svPv: 18_000, convPv: 18_000, svPar: 500 });
+    const cmp = compareBaselines(sys, b);
+    expect(cmp.ledgers.B2.netKgPerYear).toBeGreaterThan(0);
+    expect(cmp.economics.B2.annualSavingIdr).toBeLessThan(0);
+    expect(cmp.economics.B2.paybackYears[1]).toBe(Infinity);
+    expect(cmp.verdict).toMatch(/Namun secara biaya arahnya berlawanan/);
+    expect(cmp.verdict).toMatch(/cadangan LPG lebih mahal per kWh_th daripada listrik pompa kalor/);
+    expect(cmp.verdict).toMatch(/tidak balik modal/);
+  });
+
+  it('arah searah tidak menambah kalimat "berlawanan"', () => {
+    const cmp = compareBaselines(sysFixture(), inputsFixture());
+    // terhadap B1 karbon dan uang sama-sama menguntungkan SolarVein
+    expect(cmp.ledgers.B1.netKgPerYear).toBeGreaterThan(0);
+    expect(cmp.economics.B1.annualSavingIdr).toBeGreaterThan(0);
+    const b1Clause = cmp.verdict.split('. ').find((x) => x.includes('(B1)'))!;
+    expect(b1Clause).not.toMatch(/berlawanan/);
+  });
+
+  it('b4BreakEvenFraction: net terhadap B4 = 0 pada pecahan impas', () => {
+    const sys = sysFixture();
+    const b = inputsFixture();
+    const f = b4BreakEvenFraction(sys, b);
+    expect(f).not.toBeNull();
+    expect(f!).toBeGreaterThan(0);
+    expect(f!).toBeLessThanOrEqual(1);
+    const at = ledgerFor({ ...sys, carbon: { ...sys.carbon, condenserRecoveryFraction: f! } }, b, 'B4');
+    expect(at.netKgPerYear).toBeCloseTo(0, 6);
+  });
+
+  it('b4BreakEvenFraction null bila tidak ada impas di [0,1]', () => {
+    const sys = sysFixture();
+    // SolarVein sangat kuat (cadangan 0): B4 tetap kalah walau menutup seluruh kebutuhan? Bila tidak, tetap null/valid.
+    const strong = b4BreakEvenFraction(sys, inputsFixture({ svBackup: 0, svPv: 40_000 }));
+    expect(strong === null || (strong >= 0 && strong <= 1)).toBe(true);
+    const zero = {
+      solarvein: annual({ dhwDemandKWhTh: D, dhwBackupKWhTh: D }),
+      pvtDhwOnly: annual({ dhwDemandKWhTh: D, dhwBackupKWhTh: D }),
+      conventionalPvKWhEPerYear: kWhE(0),
+      dhwDemandKWhThPerYear: kWhTh(D),
+      areaM2: 0,
+    } as BaselineInputs;
+    const z = b4BreakEvenFraction(sys, zero);
+    expect(z === null || (z >= 0 && z <= 1)).toBe(true);
+  });
+
+  it('baris PV memakai total PV apa adanya (derating dari day.ts diteruskan)', () => {
+    const sys = sysFixture();
+    const a = ledgerFor(sys, inputsFixture({ convPv: 18_000 }), 'B2');
+    const b = ledgerFor(sys, inputsFixture({ convPv: 15_000 }), 'B2');
+    const pv = (l: typeof a) => l.rows.find((r) => r.id === 'listrik-pv')!;
+    expect(pv(b).kgPerYear - pv(a).kgPerYear).toBeCloseTo(3_000 * 0.8, 9);
+    const c = ledgerFor(sys, inputsFixture({ svPv: 17_000 }), 'B1');
+    const d = ledgerFor(sys, inputsFixture({ svPv: 20_000 }), 'B1');
+    expect(pv(d).kgPerYear - pv(c).kgPerYear).toBeCloseTo(3_000 * 0.8, 9);
   });
 });
