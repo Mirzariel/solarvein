@@ -32,6 +32,7 @@ const SHORT: Record<CollectorConfig, string> = {
   'conventional-pv': 'PV biasa',
   'pvt-harvest-only': 'PV + pendingin cairan',
   'solarvein-dual': 'SolarVein',
+  'pvt-liquid': 'PV/T cair',
 };
 
 interface RowSpec {
@@ -61,12 +62,14 @@ const BAR_FILL: Record<CollectorConfig, string> = {
   'conventional-pv': 'bg-loss',
   'pvt-harvest-only': 'bg-ink-2',
   'solarvein-dual': 'bg-ink',
+  'pvt-liquid': 'bg-ink-2',
 };
 
 const SUB: Record<CollectorConfig, string> = {
   'conventional-pv': 'tanpa penukar panas',
   'pvt-harvest-only': 'hanya memanen panas',
   'solarvein-dual': 'memanen dan membuang panas',
+  'pvt-liquid': 'hanya memanen panas',
 };
 
 

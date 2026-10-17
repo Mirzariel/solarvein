@@ -22,7 +22,14 @@ export type CollectorConfig =
   /** PVT with rear exchanger + insulation; pump runs only when heat can be HARVESTED into a load. */
   | 'pvt-harvest-only'
   /** SolarVein: same PVT hardware; controller may run the pump to harvest OR to reject heat. */
-  | 'solarvein-dual';
+  | 'solarvein-dual'
+  /**
+   * v2 collector: same PV/T hardware, HARVEST ONLY — never rejects heat. With pumpControl 'auto' the pump
+   * runs only when harvesting is worth it (heat load available); with 'on' it runs regardless (the system
+   * controller decides; qLiquidW < 0 then means the loop is being cooled by the collector, and it never
+   * classifies as 'reject'). With G = 0 and a cold loop it is the heat-pump SOURCE mode (environment → liquid).
+   */
+  | 'pvt-liquid';
 
 /** Pump command. 'auto' = rule-based controller decides (see physics docs). */
 export type PumpControl = 'auto' | 'on' | 'off';
@@ -73,6 +80,11 @@ export interface SimInputs {
   boilerEfficiency: number;
   /** COP of the cooling equipment displaced by rejected heat [-] (W_th removed per W_e). */
   coolingCOP: number;
+  /**
+   * OPTIONAL ambient humidity ratio w [kg/kg dry air]. When given, SimResult.qCondensationUpperW reports a
+   * one-sided upper bound of latent gain if the glass is below the dew point (not part of the energy balance).
+   */
+  humidityRatio?: number;
 }
 
 /** One node of the through-thickness temperature profile (front → back). */
@@ -133,6 +145,12 @@ export interface SimResult {
    * qLiquidW − qLiquidNoRainW is the rain contribution (negative = more heat leaves the liquid).
    */
   qLiquidNoRainW?: number;
+  /**
+   * OPTIONAL. One-sided UPPER BOUND of latent condensation gain on the glass [W_th] (Lewis analogy), only when
+   * inputs.humidityRatio is given and the glass is below the air dew point; 0 otherwise. Report-only, NOT in the
+   * energy balance, "batas atas, belum divalidasi".
+   */
+  qCondensationUpperW?: number;
   /** Front-surface convective + radiative heat loss, excluding rain [W_th], signed. */
   qFrontLossW: number;
   /** Sensible heat carried away by rain [W_th], signed. */

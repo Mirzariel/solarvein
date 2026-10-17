@@ -11,6 +11,7 @@
  * Konvensi tanda: qLiquidW > 0 panel→cairan (panen), < 0 cairan→panel→lingkungan (buang).
  */
 import { DEFAULT_INPUTS, INPUT_LIMITS, type NumericInputKey } from './presets';
+import { dewPointC, humidityRatio as humidityRatioAt, latentHeatKJkg } from './system/psychro';
 import type {
   Advisory,
   CollectorConfig,
@@ -66,6 +67,10 @@ export const MODEL_CONSTANTS = {
   stagnationCriticalC: 95,
   stagnationBoilingC: 100,
   lowIrradianceWm2: 150,
+  /** Batas atas kondensasi (analogi Lewis): bilangan Lewis udara–uap, massa jenis & kalor jenis udara. */
+  lewisNumber: 0.87,
+  rhoAir: 1.18,
+  cpAir: 1006,
 } as const;
 
 const K = MODEL_CONSTANTS;
@@ -98,6 +103,7 @@ export function clampInputs(i: SimInputs): SimInputs {
     typeof src.heatLoadAvailable === 'boolean' ? src.heatLoadAvailable : DEFAULT_INPUTS.heatLoadAvailable;
   out.hotSourceAvailable =
     typeof src.hotSourceAvailable === 'boolean' ? src.hotSourceAvailable : DEFAULT_INPUTS.hotSourceAvailable;
+  if (isNum(src.humidityRatio)) out.humidityRatio = Math.min(0.05, Math.max(0, src.humidityRatio));
   return out;
 }
 
@@ -222,6 +228,10 @@ export function simulate(i: SimInputs, config: CollectorConfig = 'solarvein-dual
   const off = solve(c, e, config, false);
   const on = isPvt ? solve(c, e, config, true) : null;
 
+  // 'pvt-liquid' = kolektor v2: hanya panen, tidak pernah membuang panas (sumber panas diabaikan).
+  const canReject = config !== 'pvt-liquid';
+  const hotSource = canReject && c.hotSourceAvailable;
+
   // ── Pengendali ──
   const qMin = K.minHeatFlowW;
   const harvestWorth = (q: number) =>
@@ -229,13 +239,13 @@ export function simulate(i: SimInputs, config: CollectorConfig = 'solarvein-dual
   const pumpPeDelta = on ? on.pe - off.pe : 0; // perubahan daya PV bila pompa dinyalakan
   const rejectNet = on ? -on.qLiq / c.coolingCOP - e.pumpW : 0;
   const rejectWorth = (q: number) =>
-    c.hotSourceAvailable && q < -qMin && rejectNet > 0 && rejectNet + pumpPeDelta > 0;
+    hotSource && q < -qMin && rejectNet > 0 && rejectNet + pumpPeDelta > 0;
 
   let pumpOn = false;
   if (isPvt && on) {
     if (c.pumpControl === 'on') pumpOn = true;
     else if (c.pumpControl === 'off') pumpOn = false;
-    else if (config === 'pvt-harvest-only') pumpOn = harvestWorth(on.qLiq);
+    else if (config === 'pvt-harvest-only' || config === 'pvt-liquid') pumpOn = harvestWorth(on.qLiq);
     else pumpOn = harvestWorth(on.qLiq) || rejectWorth(on.qLiq);
   }
   const s: Solution = pumpOn && on ? on : off;
@@ -258,11 +268,11 @@ export function simulate(i: SimInputs, config: CollectorConfig = 'solarvein-dual
   let regime: ThermalRegime = 'idle';
   if (pumpOn) {
     if (c.heatLoadAvailable && qLiquidW > qMin) regime = 'harvest';
-    else if (c.hotSourceAvailable && qLiquidW < -qMin) regime = 'reject';
+    else if (hotSource && qLiquidW < -qMin) regime = 'reject';
     else regime = 'negligible';
   }
   const usefulHeatW = pumpOn && c.heatLoadAvailable && qLiquidW > 0 ? qLiquidW : 0;
-  const heatRejectedW = pumpOn && c.hotSourceAvailable && qLiquidW < 0 ? -qLiquidW : 0;
+  const heatRejectedW = pumpOn && hotSource && qLiquidW < 0 ? -qLiquidW : 0;
   const avoidedFuelW = usefulHeatW / c.boilerEfficiency;
   const avoidedCoolingElecW = heatRejectedW / c.coolingCOP;
   const netCoolingBenefitW = avoidedCoolingElecW - pumpW;
@@ -297,6 +307,18 @@ export function simulate(i: SimInputs, config: CollectorConfig = 'solarvein-dual
     );
   } else {
     profile.push({ id: 'back', label: 'Permukaan belakang (terbuka)', tempC: s.tp - s.qBack / A / K.uBacksheet });
+  }
+
+  // Batas atas kondensasi (opsional, hanya dilaporkan; tidak masuk neraca energi).
+  let qCondensationUpperW = 0;
+  if (isNum(c.humidityRatio)) {
+    const w = c.humidityRatio;
+    if (w > 0 && s.tg < dewPointC(w)) {
+      const hm = e.hConv / (K.rhoAir * K.cpAir * Math.pow(K.lewisNumber, 2 / 3)); // [m/s]
+      const wSat = humidityRatioAt(s.tg, 1);
+      const mCond = hm * K.rhoAir * A * Math.max(0, w - wSat); // [kg/s]
+      qCondensationUpperW = mCond * latentHeatKJkg(s.tg) * 1000;
+    }
   }
 
   const etaElectrical = e.gA > 0 ? s.pe / e.gA : 0;
@@ -348,7 +370,7 @@ export function simulate(i: SimInputs, config: CollectorConfig = 'solarvein-dual
         `Pompa dimatikan manual. Bila dinyalakan, aliran panas ke cairan ≈ ${f0(qOn)} W (tanda minus berarti panas mengalir dari cairan ke panel).`,
       );
     } else {
-      if (!c.hotSourceAvailable && qOn < -qMin) {
+      if (!hotSource && qOn < -qMin) {
         add(
           'NO_HOT_SOURCE',
           'info',
@@ -362,10 +384,10 @@ export function simulate(i: SimInputs, config: CollectorConfig = 'solarvein-dual
           `Panas sebesar ±${f0(qOn)} W sebenarnya dapat dipanen, tetapi tidak ada beban panas yang memakainya sehingga tidak dihitung sebagai manfaat.`,
         );
       }
-      if (c.hotSourceAvailable && regime !== 'reject' && regime !== 'harvest' && qOn >= -qMin) {
+      if (hotSource && regime !== 'reject' && regime !== 'harvest' && qOn >= -qMin) {
         add('REJECTION_NOT_BENEFICIAL', 'info', NOT_BENEFICIAL_MESSAGE);
       }
-      if (c.hotSourceAvailable && qOn < -qMin && !rejectWorth(qOn)) {
+      if (hotSource && qOn < -qMin && !rejectWorth(qOn)) {
         add(
           'PUMP_EXCEEDS_BENEFIT',
           'warning',
@@ -380,6 +402,13 @@ export function simulate(i: SimInputs, config: CollectorConfig = 'solarvein-dual
           `Panas yang dipanen ±${f0(qOn)} W menghemat ±${f0(qOn / c.boilerEfficiency)} W bahan bakar, belum sepadan dengan pompa ${f1(e.pumpW)} W (syarat: ≥ ${K.harvestToPumpRatio}× daya pompa).`,
         );
       }
+      if (config === 'pvt-liquid' && pumpOn && qOn < -qMin) {
+        add(
+          'COLLECTOR_COOLS_LOOP',
+          'warning',
+          `Pompa menyala saat panel lebih dingin daripada cairan: cairan kehilangan ±${f0(-qOn)} W ke lingkungan. Pengendali harus mematikan pompa kecuali sedang mengambil panas dari lingkungan untuk pompa kalor.`,
+        );
+      }
       if (config === 'pvt-harvest-only' && rejectWorth(qOn)) {
         add(
           'HARVEST_ONLY_NO_REJECTION',
@@ -388,7 +417,7 @@ export function simulate(i: SimInputs, config: CollectorConfig = 'solarvein-dual
         );
       }
     }
-    if (c.pumpControl === 'on' && !c.heatLoadAvailable && !c.hotSourceAvailable) {
+    if (c.pumpControl === 'on' && !c.heatLoadAvailable && !hotSource && canReject) {
       add(
         'LOOP_NO_ENDPOINT',
         'info',
@@ -425,6 +454,7 @@ export function simulate(i: SimInputs, config: CollectorConfig = 'solarvein-dual
     etaElectrical,
     qLiquidW,
     qLiquidNoRainW,
+    qCondensationUpperW,
     qFrontLossW: s.qFront,
     qRainW: s.qRain,
     qBackLossW: s.qBack,
@@ -455,5 +485,6 @@ export function compareConfigurations(i: SimInputs): Record<CollectorConfig, Sim
     'conventional-pv': simulate(i, 'conventional-pv'),
     'pvt-harvest-only': simulate(i, 'pvt-harvest-only'),
     'solarvein-dual': simulate(i, 'solarvein-dual'),
+    'pvt-liquid': simulate(i, 'pvt-liquid'),
   };
 }
