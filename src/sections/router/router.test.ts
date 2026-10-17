@@ -3,7 +3,7 @@ import { DEFAULT_SYSTEM, MODE_TARGETS, getSystemView, routerSnapshot, stepAt, ty
 import { routerSentence } from './captions';
 import { W_TOT, outputStrips, slabs } from './layout';
 import { budget, MAX_PACKETS } from './usePackets';
-import { targetFromStep, valueSum } from './useRouterView';
+import { stateFromStep } from './paint';
 
 const view = getSystemView(DEFAULT_SYSTEM);
 const stepFor = (m: ModeTarget) => stepAt(view.day(MODE_TARGETS[m].scenario, 'adaptive'), MODE_TARGETS[m].hour);
@@ -11,11 +11,11 @@ const stepFor = (m: ModeTarget) => stepAt(view.day(MODE_TARGETS[m].scenario, 'ad
 describe('router diagram', () => {
   it('branch slabs tile the trunk: total width constant while the pump runs, zero when it stops', () => {
     for (const m of ['A', 'B', 'C'] as const) {
-      const t = targetFromStep(stepFor(m), DEFAULT_SYSTEM);
-      const s = slabs({ bypass: t.n.vBypass, dhw: t.n.vDhw, tank: t.n.vTank, desiccant: t.n.vDesiccant });
+      const t = stateFromStep(stepFor(m), DEFAULT_SYSTEM);
+      const s = slabs({ bypass: t.vBypass, dhw: t.vDhw, tank: t.vTank, desiccant: t.vDesiccant });
       const total = s.bypass.w + s.dhw.w + s.tank.w + s.desiccant.w;
       expect(total).toBeCloseTo(t.pumpOn ? W_TOT : 0, 6);
-      expect(valueSum(t.n) * W_TOT).toBeCloseTo(total, 6);
+      expect((t.vBypass + t.vDhw + t.vTank + t.vDesiccant) * W_TOT).toBeCloseTo(total, 6);
     }
   });
 

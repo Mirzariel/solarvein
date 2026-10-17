@@ -6,17 +6,17 @@
 import { useId, type ReactNode } from 'react';
 import { formatId } from '../../ui';
 import { diagramDescription } from './captions';
-import { head } from './layout';
+import { SINK_ORDER, head } from './layout';
+import type { PaintState } from './paint';
 import { PALETTES, type DiagramTone } from './palette';
 import type { LayerId } from './RouterDiagram';
-import { SINK_ORDER, valueSum, type RouterView } from './useRouterView';
 
 const W = 24;
 const kw = (w: number): string => formatId(w / 1000, 1);
 
 interface Props {
-  view: RouterView;
-  target: RouterView;
+  /** Engine-frame paint state (same as the desktop painter). */
+  s: PaintState;
   layers: Record<LayerId, boolean>;
   electricalRefW: number;
   tone?: DiagramTone;
@@ -35,12 +35,14 @@ function slabsX(v: Record<string, number>) {
   return out;
 }
 
-export default function RouterMobile({ view, target, layers, electricalRefW, tone = 'page' }: Props) {
+export default function RouterMobile({ s, layers, electricalRefW, tone = 'page' }: Props) {
   const P = PALETTES[tone];
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
-  const n = view.n;
-  const t = target.n;
-  const sumV = valueSum(n);
+  const view = s;
+  const target = s;
+  const n = s;
+  const t = s;
+  const sumV = s.vBypass + s.vDhw + s.vTank + s.vDesiccant;
   const trunkW = sumV * W;
   const sl = slabsX({ bypass: n.vBypass, dhw: n.vDhw, tank: n.vTank, desiccant: n.vDesiccant });
   const f1 = (x: number) => Math.round(x * 10) / 10;
@@ -62,14 +64,15 @@ export default function RouterMobile({ view, target, layers, electricalRefW, ton
   const desc = diagramDescription({ mode: target.mode, pumpOn: target.pumpOn, shares: { bypass: n.vBypass, dhw: n.vDhw, tank: n.vTank, desiccant: n.vDesiccant }, soc: t.soc });
   const elecW = electricalRefW > 0 ? Math.min(1, n.electricalW / electricalRefW) : 0;
   const desOn = n.desOn;
-  const supplyC = view.mode === "B" ? P.cool : P.ink2;
+  // `cool` only while the desiccant supplies dried air
+  const supplyC = s.desOn > 0.5 ? P.cool : P.ink2;
 
   const Tx = ({ x, y, children, anchor = 'start', mono, size = 12, fill = P.ink2, halo, opacity }: { x: number; y: number; children: ReactNode; anchor?: 'start' | 'middle' | 'end'; mono?: boolean; size?: number; fill?: string; halo?: boolean; opacity?: number }) => (
     <text x={x} y={y} textAnchor={anchor} fontFamily={mono ? P.mono : P.sans} fontSize={size} fill={fill} opacity={opacity} style={halo ? { paintOrder: 'stroke', stroke: P.paper, strokeWidth: 3.5, strokeLinejoin: 'round' } : undefined}>
       {children}
     </text>
   );
-  const thTag = <tspan dy={3} fontSize={9}>th</tspan>;
+  const thTag = <tspan dy={3} fontSize={10}>th</tspan>;
 
   return (
     <div data-export="router-diagram-mobile" className="flex flex-col gap-6" style={{ lineHeight: 0 }}>
@@ -152,7 +155,7 @@ export default function RouterMobile({ view, target, layers, electricalRefW, ton
           <path d="M20,36 H320" stroke={P.ink} strokeWidth={Math.max(0, 1 + 3.5 * elecW)} opacity={elecW > 0.01 ? 1 : 0} />
           <path d={head(334, 36, 'r', 2 + 3.5 * elecW)} fill={P.ink} opacity={elecW > 0.01 ? 1 : 0} transform="translate(-14 0)" />
           <path d="M24,8 l-5,9 h4 l-2,8 l7,-10 h-4 z" fill={P.ink} />
-          <Tx x={36} y={22}>Listrik PV <tspan fontFamily={P.mono} fill={P.ink}>{kw(t.electricalW)} kW<tspan dy={3} fontSize={9}>e</tspan></tspan></Tx>
+          <Tx x={36} y={22}>Listrik PV <tspan fontFamily={P.mono} fill={P.ink}>{kw(t.electricalW)} kW<tspan dy={3} fontSize={10}>e</tspan></tspan></Tx>
           <Tx x={340} y={52} anchor="end" fill={P.ink} size={13}>Beban hotel</Tx>
         </svg>
       ) : null}
