@@ -12,6 +12,10 @@
  *  - Adsorption is ~isenthalpic: dried air leaves HOTTER. "Latent removed" alone is never the benefit.
  *  - Benefit = reference coil electricity − (after-cooler + residual coil + fans + pump + PV penalty).
  *
+ * PV penalty: `pvPenaltyWe` must be computed by the CALLER (day.ts) versus the real alternative (what the collector
+ * would do at its normal operating point instead of running hot for regeneration). Standalone sweeps leave it at 0, which
+ * makes the net balance an upper bound (a note says so).
+ *
  * Pure TypeScript, no DOM. Units: °C, W, kg, kg/kg dry air, kJ/kg for enthalpy, kg/kg for uptake.
  */
 import type {
@@ -68,6 +72,10 @@ const REGEN_OUT_RH_MAX = 0.95;
 const REGEN_OUT_APPROACH_K = 3;
 /** Lower bound on the moisture basis of per-kg figures [kg/h]; avoids ÷0 when the bed does nothing. */
 const PER_KG_FLOOR_KGH = 1e-3;
+/** Below this removal rate the unit is considered not operating [kg/h]. */
+export const OPERATING_MIN_KGH = 0.01;
+/** ...or when it covers less than this share of the moisture duty (a controller would not start the unit) (asumsi). */
+export const OPERATING_MIN_COVERAGE = 0.05;
 
 /** Verdict thresholds (documented). */
 export const VERDICT = {
@@ -166,7 +174,7 @@ export interface DesiccantEvalDetail extends DesiccantEval {
 }
 
 const zeroEval = (i: DesiccantEvalInput, notes: string[]): DesiccantEvalDetail => ({
-  operating: false, // TODO(W3 fix round)
+  operating: false,
   breakEvenCopRatio: null,
   regenC: i.regenC,
   regenAirRh: 0,
@@ -224,6 +232,39 @@ export function regenAirRh(regenC: number, regenAir: DesiccantEvalInput['regenAi
 // Main evaluation
 // ─────────────────────────────────────────────────────────────────────────────
 export function evaluateDesiccant(i: DesiccantEvalInput): DesiccantEvalDetail {
+  const e = evaluateCore(i);
+  if (!e.operating) return e;
+  // Break-even after-cooler/coil COP ratio. net(r) = coilRef − (A/(r·COP_ref) + other) with A = aftercooler
+  // duty-electricity × COP_after independent of the COP (moisture removal does not depend on it), so the root of
+  // the bisection the spec asks for is exact: r* = A / (COP_ref·(coilRef − other)). Valid in (1, 4], else null.
+  const h = e.hvac;
+  const copRef = Math.max(1, i.carbon.coilRefCop);
+  const copAfter = Math.max(1, i.carbon.aftercoolerCop);
+  const other = h.coilRefWe - h.netSavingWe - h.aftercoolerWe;
+  const headroom = h.coilRefWe - other;
+  const r = headroom > 0 ? (h.aftercoolerWe * copAfter) / (copRef * headroom) : NaN;
+  e.breakEvenCopRatio = Number.isFinite(r) && r >= 1 && r <= 4 ? r : null;
+  return e;
+}
+
+/**
+ * Net saving [W_e] and verdict of the same case at several after-cooler/coil COP ratios (coilRefCop fixed).
+ * For the UI sensitivity band; independent of whatever default aftercoolerCop the carbon params carry.
+ */
+export function copRatioSensitivity(
+  base: DesiccantEvalInput,
+  ratios: number[],
+): { ratio: number; netSavingWe: number; verdict: Verdict }[] {
+  return ratios.map((ratio) => {
+    const e = evaluateCore({
+      ...base,
+      carbon: { ...base.carbon, aftercoolerCop: ratio * base.carbon.coilRefCop },
+    });
+    return { ratio, netSavingWe: e.hvac.netSavingWe, verdict: e.verdict };
+  });
+}
+
+function evaluateCore(i: DesiccantEvalInput): DesiccantEvalDetail {
   const p = i.params;
   if (!p.enabled) return zeroEval(i, ['Jalur desikan dinonaktifkan.']);
 
@@ -375,8 +416,12 @@ export function evaluateDesiccant(i: DesiccantEvalInput): DesiccantEvalDetail {
   const pumpWe = Math.max(0, i.pumpWe ?? 0);
   const pvPenaltyWe = Math.max(0, i.pvPenaltyWe ?? 0);
 
-  const desiccantRouteWe = aftercoolerWe + residualWe + fanWe + pumpWe + pvPenaltyWe;
-  const netSavingWe = coilRefWe - desiccantRouteWe;
+  // The unit only runs if the bed actually removes water. If not, it simply stays off: no fan penalty is charged
+  // (the honest negative is kept for a unit that DOES operate and loses).
+  const operating =
+    M >= OPERATING_MIN_KGH && swing >= VERDICT.swingMin && (mProcessNeed <= 0 || M >= OPERATING_MIN_COVERAGE * mProcessNeed);
+  const desiccantRouteWe = operating ? aftercoolerWe + residualWe + fanWe + pumpWe + pvPenaltyWe : coilRefWe;
+  const netSavingWe = operating ? coilRefWe - desiccantRouteWe : 0;
 
   // ── Regeneration heat: what the heater delivers to the regeneration air ──
   // Desorption heat and bed reheat are taken from this same stream (it leaves the bed cooler), so they are
@@ -398,12 +443,13 @@ export function evaluateDesiccant(i: DesiccantEvalInput): DesiccantEvalDetail {
 
   // ── Verdict ──
   let verdict: Verdict;
-  if (swing < VERDICT.swingMin || M <= 0 || netSavingWe <= 0) verdict = 'tidak-layak';
+  if (!operating || netSavingWe <= 0) verdict = 'tidak-layak';
   else if (netSavingWe < VERDICT.marginalShare * coilRefWe || thermalCop < VERDICT.thermalCopMin) verdict = 'marginal';
   else verdict = 'layak';
   if (isComposite && verdict === 'layak') verdict = 'marginal';
 
-  if (M <= 0) {
+  if (!operating) {
+    notes.push('Tidak beroperasi pada suhu ini: bed menyerap hampir tidak ada air, sehingga unit tidak dijalankan dan beban tetap pada koil acuan.');
     notes.push(
       swing < VERDICT.swingMin
         ? `Selisih serapan (swing) ≈ 0 pada ${regenC.toFixed(0)} °C: bed tidak kering kembali, desikan tidak menyerap air tambahan.`
@@ -423,8 +469,8 @@ export function evaluateDesiccant(i: DesiccantEvalInput): DesiccantEvalDetail {
   const refIds: RefIdLike[] = isComposite ? [] : [REF_PESARAN_MILLS_1987];
 
   return {
-    operating: M >= 0.01, // TODO(W3 fix round): refine
-    breakEvenCopRatio: null, // TODO(W3 fix round)
+    operating,
+    breakEvenCopRatio: null,
     regenC,
     regenAirRh: rhRegen,
     uptakeProcess: qProc,
@@ -436,7 +482,9 @@ export function evaluateDesiccant(i: DesiccantEvalInput): DesiccantEvalDetail {
     latentRemovedW,
     regenHeatW,
     thermalCop,
-    hvac: { coilRefWe, aftercoolerWe, fanWe, pumpWe, pvPenaltyWe, netSavingWe },
+    hvac: operating
+      ? { coilRefWe, aftercoolerWe, fanWe, pumpWe, pvPenaltyWe, netSavingWe }
+      : { coilRefWe, aftercoolerWe: 0, fanWe: 0, pumpWe: 0, pvPenaltyWe: 0, netSavingWe: 0 },
     perKgWater,
     verdict,
     autonomyH: M > 0 ? (p.bedMassKg * effSwing) / M : 0,
@@ -453,8 +501,10 @@ export function evaluateDesiccant(i: DesiccantEvalInput): DesiccantEvalDetail {
     regenHeatBreakdownW: { desorption: desorptionW, bedSensible: bedSensibleW, exhaustLoss: exhaustLossW },
     supply: { tC: tSup, humidityRatio: wSup },
     processDeltaTK: po.tOut - tP,
-    savedKWhEPerKWhTh: regenHeatW > 0 ? netSavingWe / regenHeatW : 0,
-    dutyW: { coilRef: dutyRefKW * 1000, aftercooler: (dHot + phi * dStage) * 1000, residualCoil: (dResid + (1 - phi) * dStage) * 1000 },
+    savedKWhEPerKWhTh: operating && regenHeatW > 0 ? netSavingWe / regenHeatW : 0,
+    dutyW: operating
+      ? { coilRef: dutyRefKW * 1000, aftercooler: (dHot + phi * dStage) * 1000, residualCoil: (dResid + (1 - phi) * dStage) * 1000 }
+      : { coilRef: dutyRefKW * 1000, aftercooler: 0, residualCoil: dutyRefKW * 1000 },
   };
 }
 
