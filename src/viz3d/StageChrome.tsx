@@ -199,10 +199,6 @@ export function InspectLegend() {
           ↓
         </span>
         Panas ke cairan
-        <span aria-hidden="true" className="ml-1.5 text-[color:var(--color-stage-cool,#5FB3D6)]">
-          ↑
-        </span>
-        Panas dari cairan
       </span>
     </div>
   );

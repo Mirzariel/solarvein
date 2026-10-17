@@ -2,8 +2,8 @@
  * Router outlet cue (v2): the "Keluar NN °C" label is the visual source of the router diagram. Its root carries
  * `data-stage-cue="outlet"` (and the inlet one `data-stage-cue="inlet"`), so a section can read
  * `document.querySelector('[data-stage-cue="outlet"]')?.getBoundingClientRect()` and start its SVG hand-off from the
- * label's right end. The number is the live `result.outletC`; with the pump off it reads "pompa mati" (no stagnant
- * outlet temperature is presented as a reading). In the 'hotel' framing the inlet label is hidden (restraint: the
+ * label's right end. The number is the live `result.outletC`; with the pump off (the router's pump command, else the
+ * collector's) BOTH labels read "pompa diam" (no stagnant temperature is presented as a reading). In the 'hotel' framing the inlet label is hidden (restraint: the
  * outlet cue only).
  *
  * Experience stage: Masuk / Keluar temperature annotations (mono, 1 px leader lines, 4 px anchor dot) pinned to the inlet and
@@ -35,7 +35,7 @@ export function TempLabels() {
   const stage = useStage();
   // the numbers follow the weather engine's visual frame (<= 15 Hz, re-render only when the 0.1 °C text changes)
   const vals = useVisualSelect(
-    (f) => [Math.round(f.result.inletC * 10) / 10, Math.round(f.result.outletC * 10) / 10, f.result.pumpOn] as const,
+    (f) => [Math.round(f.result.inletC * 10) / 10, Math.round(f.result.outletC * 10) / 10, f.router ? f.router.pumpOn : f.result.pumpOn] as const,
     15,
     (a, b) => a[0] === b[0] && a[1] === b[1] && a[2] === b[2],
   );
@@ -132,8 +132,8 @@ export function TempLabels() {
           style={{ visibility: 'hidden' }}
         >
           <span className={INK}>{d.symbol} </span>
-          {i === 1 && !values[2] ? (
-            <span className={INK}>pompa mati</span>
+          {!values[2] ? (
+            <span className={INK}>pompa diam</span>
           ) : (
             <>
               <span className={`${INK} font-medium`}>{formatId((values[i] as number) ?? 0, 1)}</span>
