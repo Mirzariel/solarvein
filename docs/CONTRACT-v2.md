@@ -34,3 +34,18 @@ The old `docs/CONTRACT.md` (dual-mode Cerah/Hujan) stays valid for v1 code until
 - Edit only the files you own (see plan ownership table). Need a change elsewhere? Report it; do not edit.
 - Before reporting: `npx tsc -b` and `npx vitest run <your test paths>` must pass; the full `npx vitest run` must
   not regress. Commit on your branch (message ends with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`). Do not push.
+
+## Wave 2 (UI) interface — lead-owned
+- State: `src/state/system.ts` (`useSystemStore`: sys, hotelPreset, scenario, strategy, hour, modeTarget, dayView,
+  desiccantRegenC, regenAir, presentation, scene + actions). v1 `src/state/store.ts` stays until cutover.
+- Selectors: `src/state/systemSelectors.ts` — `useSystem, useSystemView, useDeferredSystemView, useDay, useStep,
+  useRouterSnapshot, useYear, useBaselines, useAreaSweep, useDesiccantSweep, useHeatUses`. Views call only these.
+- View helpers & labels: `src/sim/system/views.ts`, `labels.ts` (LABELS, DESICCANT_STATUS, SIM_BADGE, DESICCANT_NOT_BENEFICIAL).
+- Section registry: `src/sections/nav.ts` (SECTIONS, SECTION, HASH_ALIASES, resolveHash, PRESENTATION_SCENES).
+  Each section renders `<section id={…}>` with the id from nav.ts and `SectionHeader index={{n, label}}`.
+- `App.tsx`, `nav.ts`, `index.css`, `src/ui/**`, `charts/{theme,format,ChartCard}`, `state/system.ts`,
+  `state/systemSelectors.ts`, `sim/system/index.ts` are LEAD-ONLY. Need a change? Put it in your report.
+- Styling: Tailwind utilities + existing tokens only. Section-specific CSS goes in a co-located `<Section>.css`
+  imported by that section — never edit index.css. No new colours; follow .claude/skills/sv-visual-identity.
+- Copy: Indonesian, EYD V, rules in .claude/skills/sv-content-reduction. Numbers through `src/ui/numberFormat.ts`.
+- Every number on screen carries its evidence tag (see sv-visual-identity evidence dots) where it is first shown.
