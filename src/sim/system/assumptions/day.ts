@@ -26,8 +26,8 @@ export const DAY_ASSUMPTIONS: AssumptionEntry[] = [
   },
   {
     id: 'hari-pemanasan',
-    title: 'Satu hari pemanasan sebelum hari yang dihitung',
-    body: 'Setiap tipe hari dijalankan dua kali berturut-turut dan hanya hari kedua yang dicatat, sehingga suhu tangki awal mendekati keadaan berulang dan tidak bergantung pada tebakan awal. Untuk skenario hujan 3 hari, pemanasannya adalah satu hari berawan, karena hujan panjang biasanya didahului hari yang lebih cerah.',
+    title: 'Hari pemanasan sebelum hari yang dihitung',
+    body: 'Setiap tipe hari didahului dua hari pemanasan (tiga hari pada hitungan tahunan) dengan cuaca yang sama, dan hanya hari terakhir yang dicatat, sehingga suhu tangki awal mendekati keadaan berulang dan tidak bergantung pada tebakan awal. Untuk skenario hujan 3 hari, pemanasannya adalah hari-hari berawan, karena hujan panjang biasanya didahului hari yang lebih cerah.',
     tag: 'asumsi',
   },
   {

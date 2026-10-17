@@ -37,10 +37,11 @@ import type { SimInputs } from '../types';
 import { simulate } from '../model';
 import { allocate } from './router';
 import { climateAt, dhwDrawAt } from './hotel';
-import { DEFAULT_PREHEAT_EFFECTIVENESS, preheatW } from './dhw';
+import { preheatW } from './dhw';
 import { initialTank, stepTankDetailed, tankEnergyKWhTh, tankUaWPerK, tankGeometry } from './tank';
 import { heatPumpCop } from './heatpump';
-import { humidityRatio } from './psychro';
+import { enthalpyKJkg, humidityRatio } from './psychro';
+import { SUPPLY_DB_MARGIN_K, evaluateDesiccant } from './desiccant';
 import { compareBaselines } from './carbon';
 import { ANNUAL_DAY_WEIGHTS, DEFAULT_DT_H, HP_SOURCE_FLUID_C } from './assumptions/day';
 
@@ -49,57 +50,136 @@ const SINKS: readonly Sink[] = ['dhw', 'tank', 'desiccant', 'bypass'];
 const EPS_W = 1e-6;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Desiccant adapter (neutral until W3's evaluateDesiccant is wired)
+// Desiccant step (W3 evaluateDesiccant wired in) — research hypothesis, reported honestly
 // ─────────────────────────────────────────────────────────────────────────────
+/** Regeneration air is heated by the loop fluid with this approach: regenC = collector outlet − 3 K (asumsi). */
+export const REGEN_HX_APPROACH_K = 3;
+/** The fluid cools by about this much in the regeneration air heater before returning to the collector [K] (asumsi). */
+export const REGEN_LOOP_DROP_K = 10;
+/** Usable water capacity of a regenerated bed [kg water per kg desiccant] (≈ effective swing 0,07–0,13, W3 sweep). */
+export const BED_USABLE_CAPACITY_KG_PER_KG = 0.1;
+/** Bed state at the start of a scenario [0..1]. */
+const INITIAL_BED_CAPACITY = 0.5;
+
 export interface DesiccantStepIn {
   sys: SystemInputs;
-  /** Dry capacity at the start of the step [0..1]. */
+  /** Dry capacity at the start of the step [0..1] and the temperature the bed was last regenerated at [°C]. */
   capacity: number;
+  bedRegenC: number;
   /** Heat the router sent to the desiccant [W_th]. */
   allocatedW: number;
   /** Collector outlet temperature, i.e. the regeneration temperature on offer [°C]. */
-  regenC: number;
+  outletC: number;
+  /** PV electricity lost because the loop returns hotter while regenerating [W_e] (0 when not regenerating). */
+  pvPenaltyW: number;
   climate: ClimatePoint;
   dtH: number;
 }
 export interface DesiccantStepOut {
   capacity: number;
-  /** Heat that actually regenerated the bed [W_th] (0 if the fluid was below desiccantMinRegenC). */
+  bedRegenC: number;
+  /** Heat that actually regenerated the bed [W_th]. */
   regenW: number;
   moistureRemovedKgH: number;
   available: boolean;
-  /** Electricity of the reference coil [W_e] and with the desiccant path incl. after-cooler + fans [W_e]. */
+  /** Reference-coil electricity for the fresh air [W_e], and with the desiccant path (residual coil +
+   *  after-cooler + fans + PV penalty) [W_e]. Equal when the bed does nothing. */
   refWe: number;
   withDesiccantWe: number;
-  /** Desiccant fans + regeneration pump [W_e], counted as parasitic. */
+  /** Fans + regeneration pump [W_e] that are part of withDesiccantWe (also reported as parasitic). */
   parasiticWe: number;
 }
 
-/** Nominal heat to dry a fully wet bed [kWh_th per kg desiccant]: swing 0,1 kg/kg × ~0,9 kWh/kg water (placeholder). */
-const PLACEHOLDER_REGEN_KWH_PER_KG = 0.09;
-/** Bed state at the start of a scenario [0..1]. */
-const INITIAL_BED_CAPACITY = 0.5;
+/** Reference coil electricity for the fresh air (same formula as evaluateDesiccant's coilRefWe, no bed needed). */
+function refCoilWe(sys: SystemInputs, c: ClimatePoint): number {
+  const p = sys.desiccant;
+  const mP = Math.max(0, p.processAirKgS ?? sys.hotel.freshAirKgS);
+  const wSup = Math.min(humidityRatio(sys.hotel.supplyDewPointC, 1), c.humidityRatio);
+  const tSup = Math.min(sys.hotel.supplyDewPointC + SUPPLY_DB_MARGIN_K, c.ambientC);
+  const duty = Math.max(0, mP * (enthalpyKJkg(c.ambientC, c.humidityRatio) - enthalpyKJkg(tSup, wSup)));
+  return (duty * 1000) / Math.max(1, sys.carbon.coilRefCop);
+}
 
 /**
- * TODO(W3): replace with evaluateDesiccant(...): capacity drawdown by moisture removed (moistureRemovedKgH·dt /
- * (bedMass·swing)), recharge by regeneration, hvac.refWe / withDesiccantWe from the evaluation, fan power as
- * parasitic. Until then the bed only recharges from the heat it receives, nothing is removed and no HVAC
- * electricity changes (refWe = withDesiccantWe), so no desiccant benefit is ever shown.
+ * One step of the dual-bed desiccant path. Two phases that share the bed's water stock:
+ *  - Regeneration (router sent heat AND outlet ≥ desiccantMinRegenC): evaluateDesiccant at regenC = outlet −
+ *    approach gives regeneration heat and the water the bed can release per hour; the release is scaled by
+ *    allocated heat / regenHeatW (never more than the heat supports) and limited by the room left in the bed.
+ *  - Dehumidification (bed has stock and the air needs drying): evaluateDesiccant at the bed's last regeneration
+ *    temperature gives the removal rate and the net HVAC electricity; both are scaled by the fraction of that rate
+ *    the stock can sustain. Costs are attributed per kg of water removed, plus the PV penalty during regeneration.
+ * With an empty bed the reference coil does everything (withDesiccantWe = refWe).
  */
 function desiccantStep(i: DesiccantStepIn): DesiccantStepOut {
-  const d = i.sys.desiccant;
-  const effectiveW = i.regenC >= i.sys.controller.desiccantMinRegenC ? i.allocatedW : 0;
-  const fullKWh = Math.max(d.bedMassKg * PLACEHOLDER_REGEN_KWH_PER_KG, 1e-9);
-  const capacity = Math.min(1, i.capacity + (effectiveW * i.dtH) / 1000 / fullKWh);
-  return {
-    capacity,
-    regenW: effectiveW,
+  const sys = i.sys;
+  const p = sys.desiccant;
+  const refWe = p.enabled ? refCoilWe(sys, i.climate) : 0;
+  const out: DesiccantStepOut = {
+    capacity: i.capacity,
+    bedRegenC: i.bedRegenC,
+    regenW: 0,
     moistureRemovedKgH: 0,
-    available: d.enabled && capacity > 0.05,
-    refWe: 0,
-    withDesiccantWe: 0,
+    available: p.enabled && i.capacity > 0.02,
+    refWe,
+    withDesiccantWe: refWe,
     parasiticWe: 0,
   };
+  if (!p.enabled) return out;
+
+  const capKg = Math.max(p.bedMassKg * BED_USABLE_CAPACITY_KG_PER_KG, 1e-9);
+  const process = { tC: i.climate.ambientC, humidityRatio: i.climate.humidityRatio };
+  const evalAt = (regenC: number) =>
+    evaluateDesiccant({
+      regenC,
+      process,
+      regenAir: p.regenAir,
+      ambient: i.climate,
+      params: p,
+      hotel: sys.hotel,
+      carbon: sys.carbon,
+      pvPenaltyWe: 0,
+      pumpWe: 0,
+    });
+
+  let capacity = i.capacity;
+  let bedRegenC = i.bedRegenC;
+  let penaltyW = 0;
+
+  // Regeneration phase
+  if (i.allocatedW > 0 && i.outletC >= sys.controller.desiccantMinRegenC && capacity < 1) {
+    const regenC = i.outletC - REGEN_HX_APPROACH_K;
+    const ev = evalAt(regenC);
+    if (ev.regenHeatW > 0 && ev.moistureRemovedKgH > 0) {
+      const f = Math.min(1, i.allocatedW / ev.regenHeatW);
+      const wantedKg = ev.moistureRemovedKgH * f * i.dtH;
+      const roomKg = (1 - capacity) * capKg;
+      const kg = Math.min(wantedKg, roomKg);
+      capacity += kg / capKg;
+      bedRegenC = regenC;
+      out.regenW = ev.regenHeatW * f * (wantedKg > 0 ? kg / wantedKg : 0);
+      penaltyW = i.pvPenaltyW;
+    }
+  }
+
+  // Dehumidification phase
+  let savedW = 0;
+  if (capacity > 1e-9) {
+    const ev = evalAt(bedRegenC);
+    if (ev.moistureRemovedKgH > 0 && ev.requiredMoistureKgH > 0) {
+      const mD = Math.min(ev.moistureRemovedKgH, (capacity * capKg) / i.dtH);
+      const s = mD / ev.moistureRemovedKgH;
+      capacity = Math.max(0, capacity - (mD * i.dtH) / capKg);
+      out.moistureRemovedKgH = mD;
+      savedW = s * ev.hvac.netSavingWe; // ≤ 0 when the path costs more than the coil
+      out.parasiticWe = s * (ev.hvac.fanWe + ev.hvac.pumpWe);
+    }
+  }
+
+  out.capacity = capacity;
+  out.bedRegenC = bedRegenC;
+  out.available = capacity > 0.02;
+  out.withDesiccantWe = refWe - savedW + penaltyW;
+  return out;
 }
 
 /** Does the outdoor air need dehumidifying below the AC supply dew point? (documented in assumptions/day.ts) */
@@ -209,6 +289,7 @@ interface Carry {
   tank: TankState;
   router: RouterState | undefined;
   capacity: number;
+  bedRegenC: number;
 }
 
 interface PhaseResult {
@@ -245,6 +326,7 @@ function runPhase(
   let tank = carry.tank;
   let prev = carry.router;
   let capacity = carry.capacity;
+  let bedRegenC = carry.bedRegenC;
   const tank0KWh = tankEnergyKWhTh(tank, tankP, hotel.mainsC);
 
   for (let i = 0; i < nSteps; i++) {
@@ -377,16 +459,26 @@ function runPhase(
       heatPump = hp;
     }
 
-    // 7. desiccant adapter
+    // 7. desiccant path
+    let pvPenaltyW = 0;
+    if (simOn && router.allocW.desiccant > 0 && outletC >= params.desiccantMinRegenC) {
+      const regenC = outletC - REGEN_HX_APPROACH_K;
+      const hotIn = Math.max(inletC, regenC - REGEN_LOOP_DROP_K);
+      const hot = simulate(modIn(hotIn, 'on'), 'pvt-liquid');
+      pvPenaltyW = Math.max(0, simOn.electricalW - hot.electricalW) * modules * router.valves.desiccant;
+    }
     const dz = desiccantStep({
       sys,
       capacity,
+      bedRegenC,
       allocatedW: router.allocW.desiccant,
-      regenC: outletC,
+      outletC,
+      pvPenaltyW,
       climate: clim,
       dtH,
     });
     capacity = dz.capacity;
+    bedRegenC = dz.bedRegenC;
 
     col.etaThermal = G > 0 && aperture > 0 ? col.qLiquidW / (G * aperture) : 0;
     col.etaElectrical = G > 0 && aperture > 0 ? col.electricalW / (G * aperture) : 0;
@@ -405,7 +497,8 @@ function runPhase(
     acc.acceptedWh += acceptedW * k;
     acc.deliveredWh += fromTankW * k;
     acc.moistureKg += dz.moistureRemovedKgH * k;
-    acc.hvacSavedWh += (dz.refWe - dz.withDesiccantWe) * k;
+    // fans/pump are counted once, as parasitic electricity, so they are added back here
+    acc.hvacSavedWh += (dz.refWe - dz.withDesiccantWe + dz.parasiticWe) * k;
     if (heatPump) acc.hpWorkWh += heatPump.workWe * k;
 
     if (record) {
@@ -441,7 +534,7 @@ function runPhase(
   return {
     steps,
     acc,
-    carry: { tank, router: prev, capacity },
+    carry: { tank, router: prev, capacity, bedRegenC },
     tank0KWh,
     tank1KWh: tankEnergyKWhTh(tank, tankP, hotel.mainsC),
   };
@@ -454,8 +547,8 @@ export interface SimulateSystemOpts {
   strategy?: RouterStrategy;
   /** Step length [h]; default 0,25. */
   dtH?: number;
-  /** Run a preceding warm-up day (default true; see assumptions/day.ts). */
-  warmUp?: boolean;
+  /** Number of preceding warm-up days that are run but not recorded (default 2; see assumptions/day.ts). */
+  warmUpDays?: number;
   /** Start tank state (skips the default initial tank). */
   initialTank?: TankState;
 }
@@ -477,10 +570,15 @@ function planFor(scenario: DayScenarioId): ScenarioPlan {
   return { hours: 24, climate: (t) => climateAt(scenario, t), warm: (t) => climateAt(scenario, t) };
 }
 
+/** Warm-up days before a recorded 24/72 h scenario, and before each typical day of the annual sum. */
+const WARM_UP_DAYS = 2;
+const WARM_UP_DAYS_YEAR = 3;
+
 const startCarry = (sys: SystemInputs): Carry => ({
   tank: initialTank(sys.tank, sys.hotel.mainsC),
   router: undefined,
   capacity: INITIAL_BED_CAPACITY,
+  bedRegenC: sys.controller.desiccantMinRegenC,
 });
 
 export function simulateSystem(
@@ -493,9 +591,8 @@ export function simulateSystem(
   const plan = planFor(scenario);
   let carry = startCarry(sys);
   if (opts.initialTank) carry = { ...carry, tank: opts.initialTank };
-  if (opts.warmUp ?? true) {
-    carry = runPhase(sys, strategy, plan.warm, 24, dtH, carry, false).carry;
-  }
+  const warm = Math.max(0, Math.floor(opts.warmUpDays ?? WARM_UP_DAYS));
+  if (warm > 0) carry = runPhase(sys, strategy, plan.warm, 24 * warm, dtH, carry, false).carry;
   const r = runPhase(sys, strategy, plan.climate, plan.hours, dtH, carry, true);
   const delta = r.tank1KWh - r.tank0KWh;
   const closure = delta - (r.acc.acceptedWh - r.acc.deliveredWh - r.acc.lossWh) / 1000;
@@ -515,7 +612,7 @@ export function simulateYear(sys: SystemInputs, strategy?: RouterStrategy, dtH: 
   let totals: DayTotals | undefined;
   for (const w of ANNUAL_DAY_WEIGHTS) {
     const plan = planFor(w.scenario);
-    const warmed = runPhase(sys, strat, plan.warm, 24, dtH, startCarry(sys), false).carry;
+    const warmed = runPhase(sys, strat, plan.warm, 24 * WARM_UP_DAYS_YEAR, dtH, startCarry(sys), false).carry;
     const r = runPhase(sys, strat, plan.climate, plan.hours, dtH, warmed, false);
     const day = scaleTotals(totalsOf(r.acc, r.tank1KWh - r.tank0KWh, sys.heatPumpSource.enabled), w.days);
     totals = totals ? addTotals(totals, day) : day;
