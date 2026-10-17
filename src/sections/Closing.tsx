@@ -17,7 +17,7 @@ export default function Closing() {
       { scale: desktop ? 0.88 : 0.95, borderRadius: desktop ? 40 : 24 },
       { scale: 1, borderRadius: desktop ? 28 : 20, ease: 'none', scrollTrigger: { trigger: '[data-closing-photo]', start: 'top bottom', end: 'top 25%', scrub: 0.6 } },
     );
-    gsap.fromTo('[data-closing-photo] img', { yPercent: -6 }, { yPercent: 6, ease: 'none', scrollTrigger: { trigger: '[data-closing-photo]', start: 'top bottom', end: 'bottom top', scrub: true } });
+    gsap.fromTo('[data-closing-photo] img', { yPercent: -6, scale: 1.14 }, { yPercent: 6, scale: 1.14, ease: 'none', scrollTrigger: { trigger: '[data-closing-photo]', start: 'top bottom', end: 'bottom top', scrub: true } });
     gsap.fromTo('[data-closing-copy] > *', { autoAlpha: 0, y: 24 }, { autoAlpha: 1, y: 0, stagger: 0.08, duration: 0.9, ease: 'power3.out', scrollTrigger: { trigger: '[data-closing-copy]', start: 'top 80%', once: true } });
   });
 
@@ -28,7 +28,8 @@ export default function Closing() {
         <h2 id="penutup-judul" className="mt-10 text-display-xl text-ink">
           <span className="block">{CLOSING.title[0]}</span> <span className="block text-ink-3">{CLOSING.title[1]}</span>
         </h2>
-        <p className="mt-8 max-w-[40ch] text-lead text-ink-2">{CLOSING.honest}</p>
+        <p className="mt-8 max-w-[44ch] text-lead text-ink-2">{CLOSING.theme}</p>
+        <p className="mt-4 max-w-[48ch] text-small text-ink-3">{CLOSING.honest}</p>
         <div className="mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-4">
           <ButtonLink href={CLOSING.ctaPrimary.href} variant="primary" size="lg" className="text-surface!">
             {CLOSING.ctaPrimary.label}

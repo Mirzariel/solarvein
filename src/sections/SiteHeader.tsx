@@ -9,7 +9,8 @@ import { SECTIONS, resolveHash } from './nav';
  * Tautan dan urutannya dari nav.ts (SECTIONS dengan nav: true); tombol Lab di kanan; lencana "Simulasi · belum ada data ukur"
  * selalu terlihat (lengkap di layar lebar, ringkas di layar sempit). Garis bawah geser mengikuti bagian aktif.
  * Scroll-spy memakai posisi (bukan IntersectionObserver) agar bagian yang dimuat malas tetap terdeteksi; bagian tanpa
- * tautan (Di dalam kolektor, Jeda, Desikan) menyorot tautan terdekat di atasnya, Lab menyorot tombol Lab.
+ * tautan: Di dalam kolektor menyorot Sistem; Jeda, Desikan dan Penutup tidak menyorot apa pun (bukan bagian dari tautan
+ * mana pun); Lab menyorot tombol Lab. Di atas bagian gelap, header memakai warna gelap yang tenang.
  */
 const NAV = SECTIONS.filter((s) => s.nav);
 
@@ -22,15 +23,16 @@ function readActive(vh: number): string {
     const el = document.getElementById(s.id);
     if (!el || el.getBoundingClientRect().top > vh * 0.38) continue;
     if (s.nav || s.id === 'lab') cur = s.id;
-    else if (s.id === 'awal' || s.id === 'penutup') cur = '';
+    else if (s.id === 'sistem-dalam') cur = 'sistem';
+    else cur = '';
   }
   return cur;
 }
 
 /** Permanent badge: every number on the site is simulated. Dot shape = simulation (half-filled). */
-function SimBadge({ className }: { className?: string }) {
+function SimBadge({ dark, className }: { dark?: boolean; className?: string }) {
   return (
-    <span className={cx('inline-flex items-center gap-2 text-label text-ink-2', className)} title={SIM_BADGE} aria-label={SIM_BADGE}>
+    <span className={cx('inline-flex items-center gap-2 text-label', dark ? 'text-stage-ink-2' : 'text-ink-2', className)} title={SIM_BADGE} aria-label={SIM_BADGE}>
       <EvidenceDot tag="simulasi" />
       <span aria-hidden="true" className="hidden xl:inline">
         {SIM_BADGE}
@@ -47,6 +49,7 @@ export default function SiteHeader() {
   const [active, setActive] = useState<string>('');
   const [overPhoto, setOverPhoto] = useState(true);
   const [scrolled, setScrolled] = useState(false);
+  const [dark, setDark] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const navRef = useRef<HTMLElement>(null);
   const itemRefs = useRef<Record<string, HTMLAnchorElement | null>>({});
@@ -63,6 +66,9 @@ export default function SiteHeader() {
       // Transparan hanya di puncak halaman (scrollY ≤ 64) selama foto pembuka ada; lalu kertas padat.
       setOverPhoto(opening ? window.scrollY <= 64 && opening.getBoundingClientRect().bottom > HEADER_H : false);
       setScrolled(window.scrollY > 8);
+      // what is directly under the bar: a dark chapter (Di dalam, Jeda, footer, dark beats) gets a quiet dark tint
+      const under = document.elementFromPoint(window.innerWidth / 2, HEADER_H + 4);
+      setDark(Boolean(under?.closest('section.bg-stage-0, footer.bg-stage-0, [data-dark-band]')));
     };
     const onScroll = () => {
       if (!raf) raf = requestAnimationFrame(read);
@@ -130,14 +136,18 @@ export default function SiteHeader() {
 
   // The page opens on paper: the bar is transparent at the very top and turns into frosted paper once content passes under it.
   const bare = overPhoto && !scrolled && !open;
-  const solid = true;
+  const solid = !dark;
 
   return (
     <header
       data-over-photo="false"
       className={cx(
         'fixed inset-x-0 top-0 z-50 border-b transition-[background-color,border-color,color,backdrop-filter] duration-[200ms] ease-ui',
-        bare ? 'border-transparent bg-transparent text-ink' : 'border-line/80 bg-paper/80 text-ink backdrop-blur-xl backdrop-saturate-150',
+        bare
+          ? 'border-transparent bg-transparent text-ink'
+          : dark
+            ? 'border-stage-line bg-stage-0/85 text-white backdrop-blur-xl'
+            : 'border-line/80 bg-paper/80 text-ink backdrop-blur-xl backdrop-saturate-150',
       )}
     >
       <div className="page-wrap flex h-14 items-center justify-between gap-4">
@@ -151,7 +161,7 @@ export default function SiteHeader() {
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
         >
-          <Logo className="text-[17px] text-ink" />
+          <Logo className={cx('text-[17px]', dark ? 'text-white' : 'text-ink')} />
         </a>
 
         <nav ref={navRef} aria-label="Navigasi utama" className="relative hidden items-center gap-1 lg:flex">
@@ -186,13 +196,13 @@ export default function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-4">
-          <SimBadge />
+          <SimBadge dark={dark} />
           <ButtonLink
             href="#lab"
-            variant="secondary"
+            variant={dark ? 'stage' : 'secondary'}
             size="sm"
             aria-current={active === 'lab' ? 'location' : undefined}
-            className={cx('max-lg:hidden', active === 'lab' && 'bg-sunken')}
+            className={cx('max-lg:hidden', active === 'lab' && (dark ? 'bg-white/10' : 'bg-sunken'))}
           >
             Lab
           </ButtonLink>

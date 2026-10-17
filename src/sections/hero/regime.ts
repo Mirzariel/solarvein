@@ -30,11 +30,11 @@ export function describeStep(step: DayStep): Statement {
   if (router.pumpOn) {
     detail = `Cairan masuk ${degC(c.inletC)}, keluar ${degC(c.outletC)}; sel ${degC(c.cellC)}.`;
   } else if (router.mode === 'A') {
-    detail = `Kolektor ${degC(c.cellC)}; dasar tangki ${degC(tank.bottomC)}.`;
+    detail = `Cairan diam; kolektor ${degC(c.cellC)}, dasar tangki ${degC(tank.bottomC)}.`;
   } else {
-    detail = `Tangki atas ${degC(tank.topC)}, terisi ${Math.round(tank.soc * 100)}%.`;
+    detail = `Cairan diam; tangki atas ${degC(tank.topC)}, terisi ${Math.round(tank.soc * 100)} %.`;
   }
-  if (!router.pumpOn && dhw.backupW > 0) detail += ' Pemanas yang ada menutup sisa kebutuhan.';
+  if (!router.pumpOn && dhw.backupW > 0) detail += ' Pemanas cadangan menutup sisa kebutuhan.';
   return {
     key: `${router.mode}|${router.reason}`,
     mode: router.mode,

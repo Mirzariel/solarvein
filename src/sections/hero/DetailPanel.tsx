@@ -14,8 +14,8 @@ export function DetailPanel() {
   return (
     <Disclosure title={SISTEM.detail.title} hint={SISTEM.detail.hint} level={3}>
       <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
-        <LiveReadout label="Cairan masuk" select={(s) => s.collector.inletC} digits={1} unit="°C" kind="temperature" size="sm" />
-        <LiveReadout label="Cairan keluar" select={(s) => s.collector.outletC} digits={1} unit="°C" kind="temperature" size="sm" />
+        <LiveReadout label="Cairan masuk" idle select={(s) => s.collector.inletC} digits={1} unit="°C" kind="temperature" size="sm" />
+        <LiveReadout label="Cairan keluar" idle select={(s) => s.collector.outletC} digits={1} unit="°C" kind="temperature" size="sm" />
         <LiveReadout label="Suhu sel" select={(s) => s.collector.cellC} digits={1} unit="°C" kind="temperature" size="sm" />
         <LiveReadout label="Sinar di bidang panel" select={(s) => s.climate.irradiance} unit="W/m²" kind="neutral" size="sm" />
         <LiveReadout label="Daya pompa" select={(s) => s.collector.pumpW / 1000} digits={2} unit="kW" kind="electrical" size="sm" />

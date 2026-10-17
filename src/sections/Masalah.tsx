@@ -57,10 +57,8 @@ export default function Masalah() {
           </figure>
         </div>
 
-        <p className="mt-12 flex max-w-[60ch] items-start gap-2 text-small text-ink-3">
-          <Evidence tag="terbit" label className="mt-0.5 shrink-0" />
-          <span>{MASALAH.statement}</span>
-        </p>
+        <p className="mt-12 max-w-[60ch] text-body text-ink-2">{MASALAH.inclusive}</p>
+        <p className="mt-3 max-w-[60ch] text-small text-ink-3">{MASALAH.statement}</p>
 
         <div className="mt-6 max-w-[44rem]">
           <Disclosure title={MASALAH.disclosure.title} hint="BPS, audit hotel, faktor emisi" level={3}>
