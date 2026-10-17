@@ -173,6 +173,13 @@ export interface CarbonParams {
   embodiedBosKg: number;
   /** Embodied emissions of the desiccant unit [kgCO₂e]. */
   embodiedDesiccantKg: number;
+  /** B4: share of DHW demand an AC-condenser heat-recovery unit covers [0..1] (assumption, range). */
+  condenserRecoveryFraction: number;
+  /** B4: extra electricity of the condenser heat-recovery pump per kWh_th recovered [kWh_e/kWh_th]. */
+  condenserRecoveryKWhEPerKWhTh: number;
+  /** Embodied emissions of the B4 condenser heat-recovery kit [kgCO₂e]; HPWH for B2 [kgCO₂e]. */
+  embodiedCondenserKitKg: number;
+  embodiedHpwhKg: number;
   /** Equipment lifetime for annualising embodied emissions [years]. */
   lifetimeYears: number;
 }
@@ -387,6 +394,12 @@ export interface DesiccantEval {
     /** coilRef − (aftercooler + fan + pump + pvPenalty) [W_e]; > 0 means real saving. */
     netSavingWe: number;
   };
+  /**
+   * Same dehumidification duty, two routes, per kg of water removed [kWh_e/kg]:
+   * the desiccant path (after-cooler + fans + pump + PV penalty) vs the reference compressor coil.
+   * Answers: would PV electricity in an efficient compressor beat routing low-grade heat to desiccant?
+   */
+  perKgWater: { desiccantKWhE: number; coilRefKWhE: number };
   verdict: Verdict;
   /** Hours a fully dry bed can dehumidify without regeneration. */
   autonomyH: number;
@@ -400,7 +413,7 @@ export type HeatUse =
   | 'dhw-heat-pump'
   | 'dhw-electric'
   | 'desiccant'
-  | 'pv-ke-kompresor'
+  /** Dump the heat (bypass / run cells cooler) and gain PV electricity instead. */
   | 'pv-lebih-dingin';
 
 export interface HeatUseValue {
@@ -455,6 +468,22 @@ export interface EconomicsResult {
   tag: EvidenceTag;
 }
 
+/**
+ * Everything compareBaselines needs, prepared by day.ts (baselineInputs). All cases deliver the same
+ * DHW energy at setpoint, the same electricity demand and the same indoor humidity (equal service).
+ */
+export interface BaselineInputs {
+  /** SolarVein: PV/T + adaptive router (+ desiccant row, excluded from headline). */
+  solarvein: AnnualResult;
+  /** B3: same PV/T area, DHW-priority, no desiccant, no adaptive routing. */
+  pvtDhwOnly: AnnualResult;
+  /** B2/B4: plain PV on the same roof area (conventional-pv config, own cell temperature). */
+  conventionalPvKWhEPerYear: KWhE;
+  /** Annual DHW demand at setpoint [kWh_th] (same for every case). */
+  dhwDemandKWhThPerYear: KWhTh;
+  areaM2: number;
+}
+
 export interface BaselineComparison {
   ledgers: Record<BaselineId, CarbonLedger>;
   economics: Record<BaselineId, EconomicsResult>;
@@ -468,7 +497,7 @@ export interface BaselineComparison {
 // hotel.ts      (W2a): DEFAULT_SYSTEM: SystemInputs; HOTEL_PRESETS: Record<'hotel-100'|'penginapan-kecil', HotelParams>;
 //                      climateAt(scenario: DayScenarioId, t: number): ClimatePoint;
 //                      dhwDrawAt(hotel: HotelParams, hourOfDay: number): { drawLph: number; demandW: number }
-// psychro.ts    (W3) : saturationPressureKPa(tC), humidityRatio(tC, rh, pKPa?), relativeHumidity(tC, w, pKPa?),
+// psychro.ts    (lead, done): saturationPressureKPa(tC), humidityRatio(tC, rh, pKPa?), relativeHumidity(tC, w, pKPa?),
 //                      enthalpyKJkg(tC, w), dewPointC(w, pKPa?)
 // tank.ts       (W2a): stepTank(s: TankState, p: TankParams, f: { chargeW: number; chargeC: number;
 //                      dischargeW: number; mainsC: number; ambientC: number }, dtH: number): TankState; initialTank(p, mainsC)
@@ -480,7 +509,8 @@ export interface BaselineComparison {
 //                      areaSweep(sys: SystemInputs, areasM2: number[], strategies: RouterStrategy[]): AreaSweepPoint[]
 // desiccant.ts  (W3) : isothermUptake(material, rh, tC): number; evaluateDesiccant(i: DesiccantEvalInput): DesiccantEval;
 //                      desiccantSweep(base: DesiccantEvalInput, regenTemps: number[]): DesiccantEval[]
-// carbon.ts     (W4) : compareBaselines(sys: SystemInputs, annual: AnnualResult): BaselineComparison
-//                      heatUseValues(sys: SystemInputs): HeatUseValue[]
-// economics.ts  (W4) : economicsFor(sys: SystemInputs, ledger: CarbonLedger, annual: AnnualResult): EconomicsResult
+//                      baselineInputs(sys: SystemInputs): BaselineInputs
+// carbon.ts     (W4) : compareBaselines(sys: SystemInputs, b: BaselineInputs): BaselineComparison
+//                      heatUseValues(sys: SystemInputs, x: { desiccant: DesiccantEval; pvGainWePerWth: number }): HeatUseValue[]
+// economics.ts  (W4) : economicsFor(sys: SystemInputs, ledger: CarbonLedger, b: BaselineInputs): EconomicsResult
 // assumptions/<module>.ts (owner of the module): export const <MODULE>_ASSUMPTIONS: AssumptionEntry[]
