@@ -11,7 +11,7 @@ export const LABELS: LabelMaps = {
   /** Controller mode: a state computed from conditions, never a clock label. */
   mode: {
     A: 'A · Panas tersedia',
-    B: 'B · Sinar lemah, pakai simpanan',
+    B: 'B · Pompa diam, pakai simpanan',
     C: 'C · Tanpa sinar',
   },
   /** UI condition presets (scenario + time), not outcomes: the controller still computes the real mode. */

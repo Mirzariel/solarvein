@@ -35,11 +35,13 @@ export interface EvidenceProps {
   label?: boolean;
   /** Stage (dark) tone. */
   inverse?: boolean;
+  /** Show the small citation arrow for 'terbit' (only where one cited number stands alone). Default false. */
+  cite?: boolean;
   className?: string;
 }
 
 /** Inline evidence marker with an accessible tooltip (label + APA reference when a refId is given). */
-export function Evidence({ tag, refId, label = false, inverse, className }: EvidenceProps) {
+export function Evidence({ tag, refId, label = false, inverse, cite = false, className }: EvidenceProps) {
   const ref = refId ? REFERENCES[refId] : undefined;
   const text = LABELS.evidence[tag];
   const content = ref ? `${text}. ${ref.apa}` : text;
@@ -48,11 +50,11 @@ export function Evidence({ tag, refId, label = false, inverse, className }: Evid
       <span
         tabIndex={0}
         aria-label={content}
-        className={cx('inline-flex items-center gap-1.5 align-middle text-[12px] leading-4', inverse ? 'text-white/60' : 'text-ink-2', className)}
+        className={cx('inline-flex items-center gap-1.5 align-[0.05em] text-[12px] leading-4', inverse ? 'text-white/60' : 'text-ink-2', className)}
       >
         <EvidenceDot tag={tag} />
         {label ? <span className="num">{text}</span> : null}
-        {tag === 'terbit' ? <span aria-hidden="true" className="num text-[10px]">↗</span> : null}
+        {tag === 'terbit' && cite ? <span aria-hidden="true" className="num text-[10px]">↗</span> : null}
       </span>
     </Tooltip>
   );
