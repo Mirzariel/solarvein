@@ -509,6 +509,8 @@ export interface BaselineComparison {
   economics: Record<BaselineId, EconomicsResult>;
   /** Generated Indonesian sentence, derived from the numbers (no default winner). */
   verdict: string;
+  /** B4 condenser-recovery fraction at which SolarVein and B4 tie (null if none in 0..1). */
+  b4BreakEvenFraction?: number | null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

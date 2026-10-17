@@ -478,7 +478,7 @@ export function compareBaselines(sys: SystemInputs, b: BaselineInputs): Baseline
     economics[id] = economicsFor(sys, ledgers[id], b);
   }
   // Baris desikan tidak pernah masuk net; kalimat menyebut pengecualiannya hanya bila jalur desikan aktif.
-  return { ledgers, economics, verdict: verdictFor(sys, ledgers, economics, b) };
+  return { ledgers, economics, verdict: verdictFor(sys, ledgers, economics, b), b4BreakEvenFraction: b4BreakEvenFraction(sys, b) };
 }
 
 /**
