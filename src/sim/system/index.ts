@@ -2,3 +2,4 @@
 // the lead adds their exports at merge time.
 export * from './contract';
 export * from './psychro';
+export * from './router';
