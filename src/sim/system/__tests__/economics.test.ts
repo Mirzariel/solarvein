@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { compareBaselines, ledgerFor } from '../carbon';
-import { economicsFor } from '../economics';
+import { economicsFor, finiteOrNull } from '../economics';
 import type { BaselineId } from '../contract';
 import { inputsFixture, sysFixture } from './w4-fixtures';
 
@@ -70,5 +70,16 @@ describe('ekonomi vs pembanding', () => {
     expect(e.capexIdr).toEqual([0, 0, 0]);
     expect(e.annualSavingIdr).toBeCloseTo(0, 6);
     expect(e.paybackYears).toEqual([Infinity, Infinity, Infinity]);
+  });
+});
+
+describe('finiteOrNull', () => {
+  it('Infinity/NaN menjadi null, bilangan hingga tetap', () => {
+    expect(finiteOrNull(Infinity)).toBeNull();
+    expect(finiteOrNull(-Infinity)).toBeNull();
+    expect(finiteOrNull(Number.NaN)).toBeNull();
+    expect(finiteOrNull(12.5)).toBe(12.5);
+    expect(finiteOrNull(0)).toBe(0);
+    expect(JSON.stringify(economicsFor(sysFixture(), ledgerFor(sysFixture(), inputsFixture({ svPv: 0, svBackup: 80_000 }), 'B1'), inputsFixture({ svPv: 0, svBackup: 80_000 })).paybackYears.map(finiteOrNull))).toBe('[null,null,null]');
   });
 });

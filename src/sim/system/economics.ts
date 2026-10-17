@@ -38,6 +38,11 @@ function energyCostIdr(sys: SystemInputs, f: CaseFlows): number {
   return gridKWhE * nn(e.gridTariffIdrPerKWh) + lpgKg * nn(e.lpgPriceIdrPerKg);
 }
 
+/** Infinity/NaN → null, untuk JSON dan ekspor (JSON.stringify mengubah Infinity menjadi null tanpa tanda). */
+export function finiteOrNull(x: number): number | null {
+  return typeof x === 'number' && Number.isFinite(x) ? x : null;
+}
+
 export function economicsFor(
   sys: SystemInputs,
   ledger: CarbonLedger,
