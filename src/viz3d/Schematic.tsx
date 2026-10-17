@@ -4,9 +4,9 @@
  *  - layers (frame, glass, cells, TIM, absorber plate, copper tube, foam, back sheet),
  *  - liquid always inlet -> outlet (dashes move left -> right while the pump runs), tube coloured by the same
  *    OKLab ramp as the 3D liquid (warna diperkuat),
- *  - heat arrows between cells and liquid: direction + size from the SIGN and MAGNITUDE of the live qLiquidW
- *    (pump on and |q| > 20 W). No regime flag and no UI mode is read,
- *  - front-loss arrows from the sign of qFrontLossW + qRainW,
+ *  - v2 = harvest only: amber arrows between the cells and the liquid, always pointing from the cells into the
+ *    liquid, drawn only while the pump runs and the live qLiquidW > 20 W; their length and width follow qLiquidW.
+ *    No rejection / reversed arrows, no cyan, no front-loss or rain arrows. No regime flag and no UI mode is read,
  *  - temperatures labelled in mono.
  *
  * `tone="page"` for the light page (Lab, beside the controls); `tone="stage"` for the dark stage (no-WebGL
@@ -31,7 +31,6 @@ interface Theme {
   ink2: string;
   line: string;
   heat: string;
-  cool: string;
   glass: string;
   glassStroke: string;
   cell: string;
@@ -43,7 +42,6 @@ interface Theme {
   back: string;
   frame: string;
   frameStroke: string;
-  loss: string;
   halo: string;
 }
 
@@ -53,7 +51,6 @@ const THEMES: Record<'page' | 'stage', Theme> = {
     ink2: 'var(--color-ink-2, #66717C)',
     line: 'var(--color-line-strong, #CBD2D6)',
     heat: '#D98442',
-    cool: '#398BAE',
     glass: 'rgba(120,170,196,0.28)',
     glassStroke: '#8DB4C6',
     cell: '#1F2B4D',
@@ -65,7 +62,6 @@ const THEMES: Record<'page' | 'stage', Theme> = {
     back: '#4A4F55',
     frame: '#D5DADE',
     frameStroke: '#9AA3AB',
-    loss: '#8C969F',
     halo: 'var(--color-paper, #F7F8F6)',
   },
   stage: {
@@ -73,7 +69,6 @@ const THEMES: Record<'page' | 'stage', Theme> = {
     ink2: 'var(--color-stage-ink-2, #8D979F)',
     line: 'var(--color-stage-line, #262C33)',
     heat: '#F0A05C',
-    cool: '#5FB3D6',
     glass: 'rgba(156,195,214,0.22)',
     glassStroke: '#7FA8C0',
     cell: '#14203A',
@@ -85,24 +80,25 @@ const THEMES: Record<'page' | 'stage', Theme> = {
     back: '#2A2E33',
     frame: '#AEB6BE',
     frameStroke: '#6F7880',
-    loss: '#8D979F',
     halo: 'var(--color-stage-0, #0E1114)',
   },
 };
 
-const MONO = "var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace)";
-const SANS = "var(--font-sans, Inter, system-ui, sans-serif)";
+const MONO = "var(--font-mono, 'Geist Mono Variable', ui-monospace, monospace)";
+const SANS = "var(--font-sans, 'Geist Variable', system-ui, sans-serif)";
 const MIN_Q = 20;
 
-/** Heat-flow arrow size from |W| (log-ish, 16..46 px). */
+/** Harvest arrow size from q [W] (log-ish, 16..46 px). */
 const arrowLen = (w: number): number => Math.max(14, Math.min(46, 10 + 7 * Math.log10(1 + Math.abs(w))));
+/** Shaft width from q [W] (2..4.5 px): the arrow gets wider as more heat is harvested. */
+const arrowWidth = (w: number): number => Math.max(2, Math.min(4.5, 1 + 1.15 * Math.log10(1 + Math.abs(w))));
 
-function Arrow({ x, y, len, dir, color, width = 3 }: { x: number; y: number; len: number; dir: 1 | -1; color: string; width?: number }) {
-  // dir 1 = pointing down (+y), -1 = pointing up; (x, y) is the centre
-  const y1 = y - (dir * len) / 2;
-  const y2 = y + (dir * len) / 2;
+/** Always points down (+y): cell layer -> liquid. (x, y) is the centre. */
+function Arrow({ x, y, len, color, width = 3 }: { x: number; y: number; len: number; color: string; width?: number }) {
+  const y1 = y - len / 2;
+  const y2 = y + len / 2;
   const head = 6 + width;
-  const by = y2 - dir * head;
+  const by = y2 - head;
   return (
     <g>
       <line x1={x} y1={y1} x2={x} y2={by} stroke={color} strokeWidth={width} strokeLinecap="round" />
@@ -149,13 +145,8 @@ export function Schematic({ tone, compact = false, highlight = null, className }
   const ntu = r.coefficients.ntu;
   const pumpOn = r.pumpOn;
   const q = r.qLiquidW;
-  const heatOn = pumpOn && Math.abs(q) > MIN_Q;
-  const harvest = q > 0;
-  const heatColor = harvest ? t.heat : t.cool;
-  const front = r.qFrontLossW + r.qRainW;
-  const frontOn = Math.abs(front) > 3;
-  const back = r.qBackLossW;
-  const backOn = Math.abs(back) > 3;
+  const heatOn = pumpOn && q > MIN_Q; // harvest only: heat goes cell -> liquid, never the other way
+  const heatColor = t.heat;
 
   const gradStops = Array.from({ length: 6 }, (_, i) => {
     const s = i / 5;
@@ -166,10 +157,10 @@ export function Schematic({ tone, compact = false, highlight = null, className }
   const dim = (id: PartId): number => (highlight && highlight !== id ? 0.28 : 1);
   const dashId = `sv-dash-${uid}`;
   const arrowXs = [0.2, 0.4, 0.6, 0.8].map((f) => x0 + wall + (w - 2 * wall) * f);
-  const nArrows = heatOn ? Math.max(2, Math.min(4, Math.round(1 + Math.log10(1 + Math.abs(q)))) ) : 0;
+  const nArrows = heatOn ? Math.max(2, Math.min(4, Math.round(1 + Math.log10(1 + q)))) : 0;
   const shownArrows = arrowXs.filter((_, i) => i < nArrows || (nArrows === 2 && i === 2));
   const lenHeat = arrowLen(q);
-  const lenFront = arrowLen(front);
+  const widthHeat = arrowWidth(q);
 
   const valueLine = (x: number, y: number, sym: string, val: number, anchor: 'start' | 'middle' | 'end' = 'start') => (
     <text x={x} y={y} textAnchor={anchor} fontFamily={MONO} fontSize={fs} fill={t.ink2} style={{ paintOrder: 'stroke', stroke: t.halo, strokeWidth: 3, strokeLinejoin: 'round' }}>
@@ -183,9 +174,9 @@ export function Schematic({ tone, compact = false, highlight = null, className }
     </text>
   );
 
-  const harvestText = harvest ? 'Panas ke cairan' : 'Panas dari cairan';
+  const harvestText = 'Panas ke cairan';
   const descr = `Penampang kolektor PVT. Cairan masuk ${formatId(tin, 1)} °C, keluar ${formatId(tout, 1)} °C, selalu mengalir dari masuk ke keluar. ${
-    heatOn ? (harvest ? 'Panas mengalir dari sel ke cairan.' : 'Panas mengalir dari cairan ke sel dan lingkungan.') : pumpOn ? 'Pertukaran panas dengan cairan kecil.' : 'Pompa mati.'
+    heatOn ? 'Panas mengalir dari sel ke cairan.' : pumpOn ? 'Panen panas kecil.' : 'Pompa mati, tidak ada panen panas.'
   } Suhu sel ${formatId(r.cellC, 1)} °C.`;
 
   return (
@@ -253,20 +244,12 @@ export function Schematic({ tone, compact = false, highlight = null, className }
         <path d={`M${x1 + 40} ${yTube + hTube / 2 - 4} l5 4 l-5 4`} fill="none" stroke={t.ink2} strokeWidth={1.25} strokeLinecap="round" strokeLinejoin="round" />
       </g>
 
-      {/* heat arrows: between the cells and the liquid, direction from the sign of q */}
+      {/* harvest arrows: between the cells and the liquid, always cell -> liquid (v2) */}
       {heatOn
         ? shownArrows.map((x, i) => (
-            <Arrow key={i} x={x} y={(yCell + yTube + hTube / 2) / 2 + 2} len={lenHeat} dir={harvest ? 1 : -1} color={heatColor} width={3} />
+            <Arrow key={i} x={x} y={(yCell + yTube + hTube / 2) / 2 + 2} len={lenHeat} color={heatColor} width={widthHeat} />
           ))
         : null}
-
-      {/* front loss arrows: above the glass; up = heat leaves the panel */}
-      {frontOn
-        ? arrowXs.slice(0, 3).map((x, i) => (
-            <Arrow key={i} x={x + 10} y={yFrameTop - 6 - lenFront / 2} len={lenFront} dir={front > 0 ? -1 : 1} color={t.loss} width={2} />
-          ))
-        : null}
-      {backOn ? <Arrow x={compact ? x1 - 30 : (x0 + x1) / 2} y={yFrameBottom + 12 + 12} len={22} dir={back > 0 ? 1 : -1} color={t.loss} width={2} /> : null}
 
       {/* temperatures (mono; "Masuk" / "Keluar", no raw underscores) */}
       {valueLine(x0 + wall + 8, yTube + hTube + 19, 'Masuk', tin)}

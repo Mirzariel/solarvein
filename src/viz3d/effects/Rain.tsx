@@ -7,22 +7,24 @@ import { hash01, noRaycast } from './fxMath';
 import { glassTopY, type EffectProps } from './shared';
 
 /**
- * Rain: fine, sparse, angled, desaturated. At most 160 streaks (1 px, 0.12 u), constant fall speed 1.6 u/s, lean
- * 8 deg + 1.6 deg per m/s of wind, normal blending (no additive), opacity <= 0.35, no ripples. Streaks end ON the
+ * Rain (v2: not part of the story): streaks exist ONLY while `frame.climate.rainMmH > 0` (EffectTargets.rainMmH is 0
+ * for v1 frames). Fine, sparse, angled, neutral grey. At most 90 streaks (1 px, 0.12 u), constant fall speed 1.6 u/s,
+ * lean 8 deg + 1.6 deg per m/s of wind, normal blending, opacity <= 0.16, no ripples, no wet glass, no cyan: it must
+ * never read as the panel being cooled. Streaks end ON the
  * glass and shrink over the last stretch; each fades in at the top, so nothing pops in mid-air.
  * The streak count follows the visual rain intensity continuously: the fractional part of the count is a
  * per-instance alpha ramp (the 161st streak fades in instead of popping).
  */
-const MAX_STREAKS = 160;
+const MAX_STREAKS = 90;
 const FALL_H = 1.1;
 const FALL_SPEED = 1.6; // u/s
 const STREAK_LEN = 0.12;
 const MARGIN = 0.4;
-const MAX_ALPHA = 0.35;
+const MAX_ALPHA = 0.16;
 const HALF_W = PANEL_WIDTH / 2 + MARGIN;
 const HALF_L = PANEL_LENGTH / 2 + MARGIN;
 const CYCLE_S = (FALL_H + STREAK_LEN) / FALL_SPEED;
-const COLOR = new Color('#9FB2BF');
+const COLOR = new Color('#9AA3AB'); // neutral grey, never the `cool` cyan: rain cannot read as cooling
 
 const SEED = new Float32Array(MAX_STREAKS);
 for (let i = 0; i < MAX_STREAKS; i++) SEED[i] = hash01(i * 7 + 3);
@@ -43,7 +45,7 @@ void main() {
 }`;
 
 /** Number of streaks (continuous) for a rain intensity in mm/h: 15 mm/h gives ~110, 60 mm/h ~160. */
-export const streakCount = (mmH: number): number => (mmH < 0.05 ? 0 : MAX_STREAKS * (1 - Math.exp(-mmH / 11)));
+export const streakCount = (mmH: number): number => (mmH < 0.05 ? 0 : MAX_STREAKS * (1 - Math.exp(-mmH / 8)));
 
 export function Rain({ targets, version, explode, reduced }: EffectProps) {
   const meshRef = useRef<InstancedMesh>(null);

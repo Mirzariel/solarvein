@@ -73,9 +73,9 @@ function useDeferredMount(): [(el: HTMLDivElement | null) => void, boolean] {
   return [ref, near || idle];
 }
 
-/** Heat-flow wording from the SIGN and size of the live qLiquidW (never from a regime/mode flag). */
+/** Heat wording from the live qLiquidW (never from a regime/mode flag). v2 shows harvest only: cell -> liquid. */
 const flowText = (pumpOn: boolean, q: number): string =>
-  !pumpOn ? 'pompa mati' : q > 20 ? 'panas mengalir ke cairan' : q < -20 ? 'panas mengalir dari cairan' : 'pertukaran panas kecil';
+  !pumpOn ? 'pompa mati, tidak ada panen panas' : q > 20 ? 'panas mengalir dari sel ke cairan' : 'panen panas kecil';
 
 /** Live condition sentence for screen readers. A leaf: only this tiny component re-renders when the inputs change
  * (the stage / canvas tree above it never does). */
@@ -125,7 +125,7 @@ export interface CollectorStageProps {
   variant?: StageVariant;
   /** 'transparent' = alpha canvas (no sweep / haze) so the stage can float over photography. */
   background?: StageBackground;
-  /** 'roof' = concrete roof slab with the rails anchored to it (default for experience); 'none' = clean (default for inspect). */
+  /** 'roof' = hotel roof: graphite plinth, parapet, plant room, two ghost neighbour modules (default for experience); 'none' = clean (default for inspect). */
   context?: StageContextKind;
   /** Share the stage-local state (selected part, explode ...) with the surrounding section. */
   store?: StageStore;
@@ -187,7 +187,7 @@ export default function CollectorStage({
       boost: { current: 0 },
       store: st,
       explode: { current: st.getState().exploded ? 1 : 0 },
-      mood: { current: { sun: 0, rain: 0, driven: false } as MoodState },
+      mood: { current: { sun: 0, rain: 0, humid: 0.6, night: 0, driven: false } as MoodState },
       projection: { current: null as ProjectionSink | null },
       api: { current: null as ViewerApi | null },
       wake: { current: null as (() => void) | null },
@@ -253,7 +253,7 @@ export default function CollectorStage({
           {use3d
             ? 'Seret untuk memutar model. Tombol panah kiri dan kanan memutar, plus dan minus memperbesar atau memperkecil, nol mengatur ulang tampilan. Klik dua kali juga mengatur ulang. Tahan Ctrl sambil menggulir untuk zoom.'
             : 'Penampang berlapis kolektor: kaca, sel PV, antarmuka termal, absorber, saluran cairan, insulasi.'}{' '}
-          Cairan selalu mengalir dari saluran masuk ke saluran keluar; hanya arah aliran panas yang berubah.
+          Cairan selalu mengalir dari saluran masuk ke saluran keluar; panas hanya berpindah dari sel ke cairan.
         </p>
 
         {webgl === null ? (

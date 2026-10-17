@@ -1,5 +1,6 @@
 /// <reference types="vitest/config" />
-import { defineConfig, type Plugin } from 'vite';
+import { realpathSync } from 'node:fs';
+import { defineConfig, searchForWorkspaceRoot, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
@@ -21,6 +22,10 @@ function preloadDisplayFont(): Plugin {
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), preloadDisplayFont()],
+  // Worker worktrees junction node_modules to the lead checkout: allow its real path so fonts are served (no 403).
+  server: {
+    fs: { allow: [searchForWorkspaceRoot(process.cwd()), realpathSync('node_modules')] },
+  },
   build: {
     chunkSizeWarningLimit: 1200,
   },

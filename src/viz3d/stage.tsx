@@ -8,8 +8,12 @@
  *  - `StageContext` is bridged into the R3F <Canvas> (r3f v9 bridges React contexts).
  *  - `explode` is a plain ref-like object advanced once per frame by `StageDriver`; the Motion
  *    Director's effects read it through `useExplodeFactor()`.
- *  - `mood` is the studio light target (0..1 sun, 0..1 rain). Left alone, the studio derives it from the
- *    committed sim result; set `mood.current.driven = true` and write sun/rain every frame to take over.
+ *  - `mood` is the studio light target (sun 0..1, humid 0..1, night 0..1; `rain` is retired and always 0). Left alone,
+ *    the studio derives it from the committed sim result; set `mood.current.driven = true` and write it every
+ *    frame to take over (AmbientMood does, from `frame.climate`).
+ *  - `framing` (0 = panel .. 1 = hotel roof) is the camera framing. Sections drive it through the store:
+ *    `store.getState().setFraming('hotel')` / `('panel')` / a number 0..1 (scroll-scrubbed). The camera springs to
+ *    the pose (reduced motion: snaps); an A/B/C mode switch never touches it.
  *  - `projection` is the sink that receives screen positions of the 3D anchors each rendered frame
  *    (annotation overlays update their DOM transforms from it - no React renders).
  */
@@ -23,11 +27,16 @@ import type { ViewerApi } from './viewerApi';
 export type StageVariant = 'experience' | 'inspect';
 /** 'transparent' = alpha canvas (no sweep, no haze) so the stage can float over photography. */
 export type StageBackground = 'graphite' | 'transparent';
-/** 'roof' = concrete roof slab with rails anchored to it (scale cue, experience stage); 'none' = clean (inspect). */
+/** 'roof' = hotel roof (graphite plinth, parapet, plant room, ghost neighbour modules; experience stage); 'none' = clean (inspect). */
 export type StageContextKind = 'roof' | 'none';
 export type LayerVisibility = Record<LayerId, boolean>;
 
+/** Camera framing: 'panel' = the hero collector (~70 % of the stage width), 'hotel' = pulled back to the roof. */
+export type FramingName = 'panel' | 'hotel';
+
 export interface StageState {
+  /** Camera framing 0 = panel .. 1 = hotel roof (continuous so a scroll scene can scrub it). */
+  framing: number;
   exploded: boolean;
   crossSection: boolean;
   layerVisibility: LayerVisibility;
@@ -38,6 +47,8 @@ export interface StageState {
 }
 
 export interface StageActions {
+  /** 'panel' | 'hotel' | 0..1. Camera framing API (see the file header). */
+  setFraming: (v: FramingName | number) => void;
   setExploded: (v: boolean) => void;
   toggleExploded: () => void;
   setCrossSection: (v: boolean) => void;
@@ -60,11 +71,16 @@ export interface StageDefaults {
 
 export function createStageStore(defaults: StageDefaults = {}): StageStore {
   return createStore<StageState & StageActions>()((set) => ({
+    framing: 0,
     exploded: defaults.exploded ?? false,
     crossSection: false,
     layerVisibility: allVisible(),
     focusPart: defaults.focusPart ?? null,
     hoverPart: null,
+    setFraming: (v) => {
+      const framing = v === 'panel' ? 0 : v === 'hotel' ? 1 : Math.min(1, Math.max(0, v));
+      set((s) => (s.framing === framing ? s : { framing }));
+    },
     setExploded: (exploded) => set({ exploded }),
     toggleExploded: () => set((s) => ({ exploded: !s.exploded })),
     setCrossSection: (crossSection) => set({ crossSection }),
@@ -94,8 +110,12 @@ export type ProjectionSink = (points: readonly ProjectedAnchor[], width: number,
 export interface MoodState {
   /** 0 overcast .. 1 full sun. */
   sun: number;
-  /** 0 dry .. 1 heavy rain. */
+  /** Retired in v2 (no wet glass): always 0. Kept so older readers still compile. */
   rain: number;
+  /** 0 dry air .. 1 saturated: flattens the light a little. */
+  humid: number;
+  /** 0 day .. 1 night: dims key, rim and exposure. */
+  night: number;
   /** true = somebody else (Motion engine) writes sun/rain every frame; the studio only applies them. */
   driven: boolean;
 }

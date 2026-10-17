@@ -3,9 +3,10 @@
  * (baked radial falloff, no grid, no ring), a baked soft contact shadow, soft key + cool rim + fill and a
  * procedural softbox environment (no HDR download).
  *
- * Lighting follows the stage `mood` (sun 0..1, rain 0..1): overcast = cooler, softer, flatter. Left alone
- * the studio derives the mood from the live sim result with its own ~0.9 s smoother; the Motion engine can
- * set `stage.mood.current.driven = true` and write sun/rain per frame instead (single owner of the lights).
+ * Lighting follows the stage `mood` (sun 0..1, humid 0..1, night 0..1; no rain, no wet glass): overcast / humid =
+ * cooler, softer, flatter; night = dimmer. Left alone the studio derives the mood from the live sim result with its
+ * own ~0.9 s smoother; AmbientMood sets `stage.mood.current.driven = true` and writes it per frame from
+ * `frame.climate` instead (single owner of the lights).
  */
 import { Environment, Lightformer } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
@@ -154,7 +155,7 @@ export function Studio() {
   const shadowRef = useRef<THREE.Mesh>(null);
   const floorMat = useRef<THREE.MeshBasicMaterial>(null);
   const shadowMat = useRef<THREE.MeshBasicMaterial>(null);
-  const last = useRef({ sun: Number.NaN, rain: Number.NaN, ex: Number.NaN });
+  const last = useRef({ sun: Number.NaN, humid: Number.NaN, night: Number.NaN, ex: Number.NaN });
   const floorTex = useMemo(() => radialTexture(), []);
   const shadowTex = useMemo(() => shadowTexture(), []);
   const glowTex = useMemo(() => skyTexture(), []);
@@ -178,39 +179,39 @@ export function Studio() {
     const dt = Math.min(delta, 0.1);
     if (!m.driven) {
       const r = live.current;
-      const wet = clamp01(r.inputs.rainMmH / 25);
-      const sunT = clamp01(r.inputs.irradiance / 900) * (1 - 0.65 * wet);
+      const sunT = clamp01(r.inputs.irradiance / 900);
+      m.rain = 0;
       if (Number.isNaN(last.current.sun)) {
         m.sun = sunT;
-        m.rain = wet;
-      } else if (Math.abs(m.sun - sunT) > 0.002 || Math.abs(m.rain - wet) > 0.002) {
+      } else if (Math.abs(m.sun - sunT) > 0.002) {
         m.sun = dampTo(m.sun, sunT, 3.3, dt);
-        m.rain = dampTo(m.rain, wet, 3.3, dt);
         state.invalidate();
       }
     }
     const ex = stage.explode.current;
     const l = last.current;
-    if (l.sun === m.sun && l.rain === m.rain && l.ex === ex) return;
+    if (l.sun === m.sun && l.humid === m.humid && l.night === m.night && l.ex === ex) return;
     l.sun = m.sun;
-    l.rain = m.rain;
+    l.humid = m.humid;
+    l.night = m.night;
     l.ex = ex;
 
     const s = clamp01(m.sun);
+    const dark = 1 - 0.5 * clamp01(m.night);
     const key = keyRef.current;
     const rim = rimRef.current;
     const hemi = hemiRef.current;
     if (key) {
       key.color.copy(KEY_OVERCAST).lerp(KEY_SUN, s);
-      key.intensity = lerp(0.9, 2.4, s);
+      key.intensity = lerp(0.9, 2.4, s) * dark;
     }
     if (rim) {
       rim.color.copy(RIM_OVERCAST).lerp(RIM_SUN, s);
-      rim.intensity = lerp(0.7, 1.9, s);
+      rim.intensity = lerp(0.7, 1.9, s) * dark;
     }
     if (hemi) hemi.intensity = lerp(0.6, 0.35, s);
-    state.scene.environmentIntensity = lerp(0.5, 0.9, s);
-    gl.toneMappingExposure = lerp(0.95, 1.0, s);
+    state.scene.environmentIntensity = lerp(0.5, 0.9, s) * dark;
+    gl.toneMappingExposure = lerp(0.95, 1.0, s) * (1 - 0.12 * clamp01(m.night));
     if (shadowOpacity.current) shadowOpacity.current.opacity = lerp(0.14, 0.42, s);
     if (floorMat.current) floorMat.current.color.copy(FLOOR_OVERCAST).lerp(FLOOR_SUN, s);
     const floorY = FLOOR_Y - EXPLODE_DROP * ex;

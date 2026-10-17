@@ -8,6 +8,10 @@
  *  - Reset View, double-click, the toolbar rotate/zoom buttons and the keyboard all retarget the same spring
  *    (w = 7.3, ~800 ms, velocity preserved). A drag cancels any running animation.
  *  - Mode changes never touch the camera. Auto-rotate does not exist (default OFF).
+ *  - Framing (experience stage): `store.setFraming('panel' | 'hotel' | 0..1)` moves the HOME pose between the hero
+ *    panel (~70 % of the stage width) and a pull-back that shows the hotel roof (deck, parapet, plant room, ghost
+ *    neighbour modules). It uses the same critically damped spring (look-at included), cancels a user orbit and
+ *    snaps under reduced motion. Zoom bounds and Reset are relative to the current framing.
  *  - Touch: horizontal drag orbits, vertical swipes scroll the page (`touch-action: pan-y`).
  *  - Home is fitted so the model fills ~70 % of the stage width (FOV 28 deg), panel centre at ~46 % of the height.
  *  - Ctrl/Cmd + wheel (and trackpad pinch) zooms; a plain wheel keeps scrolling the page.
@@ -18,6 +22,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three';
 import { useReducedMotion } from '../hooks';
 import { Spring, clamp } from './spring';
+import { HOTEL } from './hotel';
 import { useStage, type StageVariant } from './stage';
 import type { ViewerApi } from './viewerApi';
 
@@ -38,7 +43,19 @@ interface Pose {
   pol: number;
   r: number;
   ty: number;
+  /** Look-at offset in the XZ plane (hotel framing, close-up stills). */
+  lx: number;
+  lz: number;
 }
+
+const lerpPose = (a: Pose, b: Pose, t: number): Pose => ({
+  az: a.az + (b.az - a.az) * t,
+  pol: a.pol + (b.pol - a.pol) * t,
+  r: a.r + (b.r - a.r) * t,
+  ty: a.ty + (b.ty - a.ty) * t,
+  lx: a.lx + (b.lx - a.lx) * t,
+  lz: a.lz + (b.lz - a.lz) * t,
+});
 
 // ── home pose fitting ────────────────────────────────────────────────────────────────────────
 const fitCam = new THREE.PerspectiveCamera(CAMERA_FOV, 1, 0.1, 50);
@@ -59,8 +76,10 @@ function corners(variant: StageVariant): THREE.Vector3[] {
 function project(pose: Pose, pts: THREE.Vector3[]): { minX: number; maxX: number; minY: number; maxY: number } {
   const s = new THREE.Spherical(pose.r, pose.pol, pose.az);
   fitCam.position.setFromSpherical(s);
+  fitCam.position.x += pose.lx;
   fitCam.position.y += pose.ty;
-  fitCam.lookAt(0, pose.ty, 0);
+  fitCam.position.z += pose.lz;
+  fitCam.lookAt(pose.lx, pose.ty, pose.lz);
   fitCam.updateMatrixWorld(true);
   fitCam.updateProjectionMatrix();
   let minX = Infinity;
@@ -77,37 +96,75 @@ function project(pose: Pose, pts: THREE.Vector3[]): { minX: number; maxX: number
   return { minX, maxX, minY, maxY };
 }
 
-/** Home pose for a stage of the given aspect (width / height) and width in CSS px. */
-export function fitHome(variant: StageVariant, aspect: number, widthPx: number): Pose {
-  const inspect = variant === 'inspect';
-  const compact = widthPx < 520;
-  const az = (inspect ? (compact ? 44 : 52) : compact ? 42 : 62) * D2R;
-  const pol = (inspect ? 56 : compact ? 62 : 66) * D2R;
-  const widthFrac = inspect ? (compact ? 0.8 : 0.62) : compact ? 0.9 : 0.72;
-  const heightMax = inspect ? 0.86 : 0.8;
-  const centreNdc = inspect ? 0.02 : compact ? 0.06 : 0.1; // panel centre a touch above the middle (readout strip below)
+interface FitSpec {
+  az: number;
+  pol: number;
+  widthFrac: number;
+  heightMax: number;
+  centreNdc: number;
+  ty0: number;
+  lx: number;
+  lz: number;
+}
+
+/** Smallest distance satisfying the width and height budgets, then re-centre vertically (look height ty). */
+function fitPose(pts: THREE.Vector3[], aspect: number, f: FitSpec): Pose {
   fitCam.aspect = Math.max(0.2, aspect);
-  const pts = corners(variant);
-  let ty = inspect ? 0.22 : 0.06;
-  // r: smallest distance satisfying both the width and the height budget (bisection; both are monotone in r)
+  const { az, pol, lx, lz } = f;
+  let ty = f.ty0;
+  // r: bisection; both budgets are monotone in r
   let lo = 1.2;
-  let hi = 14;
-  for (let i = 0; i < 28; i++) {
+  let hi = 30;
+  for (let i = 0; i < 30; i++) {
     const mid = (lo + hi) / 2;
-    const b = project({ az, pol, r: mid, ty }, pts);
+    const b = project({ az, pol, r: mid, ty, lx, lz }, pts);
     const w = (b.maxX - b.minX) / 2;
     const h = (b.maxY - b.minY) / 2;
-    if (w > widthFrac || h > heightMax) lo = mid;
+    if (w > f.widthFrac || h > f.heightMax) lo = mid;
     else hi = mid;
   }
   const r = hi;
   const k = r * Math.tan((CAMERA_FOV * D2R) / 2);
   for (let i = 0; i < 5; i++) {
-    const b = project({ az, pol, r, ty }, pts);
+    const b = project({ az, pol, r, ty, lx, lz }, pts);
     const c = (b.minY + b.maxY) / 2;
-    ty += (c - centreNdc) * k * 0.9;
+    ty += (c - f.centreNdc) * k * 0.9;
   }
-  return { az, pol, r, ty };
+  return { az, pol, r, ty, lx, lz };
+}
+
+/** Home pose for a stage of the given aspect (width / height) and width in CSS px. */
+export function fitHome(variant: StageVariant, aspect: number, widthPx: number): Pose {
+  const inspect = variant === 'inspect';
+  const compact = widthPx < 520;
+  return fitPose(corners(variant), aspect, {
+    az: (inspect ? (compact ? 44 : 52) : compact ? 42 : 62) * D2R,
+    pol: (inspect ? 56 : compact ? 62 : 66) * D2R,
+    widthFrac: inspect ? (compact ? 0.8 : 0.62) : compact ? 0.9 : 0.72,
+    heightMax: inspect ? 0.86 : 0.8,
+    centreNdc: inspect ? 0.02 : compact ? 0.06 : 0.1, // panel centre a touch above the middle (readout strip below)
+    ty0: inspect ? 0.22 : 0.06,
+    lx: 0,
+    lz: 0,
+  });
+}
+
+/** Pull-back pose: the hero module, its two ghost neighbours, the plant room and the parapet on one roof. */
+export function fitHotel(aspect: number, widthPx: number): Pose {
+  const compact = widthPx < 520;
+  const { x0, x1, z0, z1, y0, y1 } = HOTEL.frame;
+  const pts: THREE.Vector3[] = [];
+  for (const x of [x0, x1]) for (const y of [y0, y1]) for (const z of [z0, z1]) pts.push(new THREE.Vector3(x, y, z));
+  return fitPose(pts, aspect, {
+    az: (compact ? 44 : 52) * D2R,
+    pol: (compact ? 56 : 58) * D2R,
+    widthFrac: compact ? 0.94 : 0.9,
+    heightMax: 0.8,
+    centreNdc: compact ? 0.04 : 0.08,
+    ty0: 0.2,
+    lx: (x0 + x1) / 2,
+    lz: (z0 + z1) / 2,
+  });
 }
 
 export function initialCameraPosition(variant: StageVariant): [number, number, number] {
@@ -133,12 +190,15 @@ export function CameraRig() {
   const reduced = useReducedMotion();
   const variant = stage.variant;
 
-  const spr = useMemo(() => ({ az: new Spring(), pol: new Spring(), r: new Spring(), ty: new Spring() }), []);
-  const goal = useRef<Pose>({ az: 0, pol: 1, r: 4, ty: 0 });
-  const home = useRef<Pose>({ az: 0, pol: 1, r: 4, ty: 0 });
+  const spr = useMemo(
+    () => ({ az: new Spring(), pol: new Spring(), r: new Spring(), ty: new Spring(), lx: new Spring(), lz: new Spring() }),
+    [],
+  );
+  const goal = useRef<Pose>({ az: 0, pol: 1, r: 4, ty: 0, lx: 0, lz: 0 });
+  /** Home of the CURRENT framing (blend of the panel and hotel homes). */
+  const home = useRef<Pose>({ az: 0, pol: 1, r: 4, ty: 0, lx: 0, lz: 0 });
+  const homes = useRef<{ panel: Pose; hotel: Pose } | null>(null);
   const touched = useRef(false);
-  /** Look-at offset in the XZ plane (only set by setPose: close-up stills). */
-  const look = useRef({ x: 0, z: 0 });
   const drag = useRef({ active: false, id: -1, x: 0, y: 0, t: 0, vAz: 0, vPol: 0, touch: false });
   const fling = useRef({ vAz: 0, vPol: 0 });
   const follow = useRef(CAMERA_W);
@@ -160,28 +220,61 @@ export function CameraRig() {
   const place = (): void => {
     sph.set(spr.r.x, spr.pol.x, spr.az.x);
     tmp.setFromSpherical(sph);
-    camera.position.set(tmp.x + look.current.x, tmp.y + spr.ty.x, tmp.z + look.current.z);
-    camera.lookAt(look.current.x, spr.ty.x, look.current.z);
+    camera.position.set(tmp.x + spr.lx.x, tmp.y + spr.ty.x, tmp.z + spr.lz.x);
+    camera.lookAt(spr.lx.x, spr.ty.x, spr.lz.x);
     camera.updateMatrixWorld();
   };
 
   // Home pose: fitted to the stage; re-fitted on resize until the user has moved the camera.
+  const snapTo = (h: Pose): void => {
+    spr.az.snap(h.az);
+    spr.pol.snap(h.pol);
+    spr.r.snap(h.r);
+    spr.ty.snap(h.ty);
+    spr.lx.snap(h.lx);
+    spr.lz.snap(h.lz);
+    place();
+  };
+  /** Home of the framing t (0 panel .. 1 hotel). Only the experience stage has a hotel framing. */
+  const homeFor = (t: number): Pose => {
+    const hs = homes.current;
+    if (!hs) return home.current;
+    return t <= 0 || variant === 'inspect' ? hs.panel : lerpPose(hs.panel, hs.hotel, t);
+  };
+
   useLayoutEffect(() => {
-    const h = fitHome(variant, size.width / Math.max(1, size.height), size.width);
+    const aspect = size.width / Math.max(1, size.height);
+    homes.current = { panel: fitHome(variant, aspect, size.width), hotel: fitHotel(aspect, size.width) };
+    const h = homeFor(stage.store.getState().framing);
     home.current = h;
     if (!touched.current) {
       goal.current = { ...h };
-      spr.az.snap(h.az);
-      spr.pol.snap(h.pol);
-      spr.r.snap(h.r);
-      spr.ty.snap(h.ty);
-      place();
+      snapTo(h);
     } else {
       clampGoal(goal.current);
     }
     invalidate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [variant, size.width, size.height]);
+
+  // Framing (panel <-> hotel): retarget the home pose; the same spring carries the camera there.
+  useEffect(() => {
+    const apply = (t: number): void => {
+      const h = homeFor(t);
+      home.current = h;
+      touched.current = false;
+      fling.current.vAz = 0;
+      fling.current.vPol = 0;
+      goal.current = { ...h };
+      follow.current = CAMERA_W;
+      if (reduced) snapTo(h);
+      invalidate();
+    };
+    return stage.store.subscribe((st, prev) => {
+      if (st.framing !== prev.framing) apply(st.framing);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage.store, reduced, variant]);
 
   // API for the DOM chrome / keyboard.
   useEffect(() => {
@@ -205,19 +298,13 @@ export function CameraRig() {
         invalidate();
       },
       setPose: (p) => {
-        look.current = { x: p.tx ?? 0, z: p.tz ?? 0 };
-        const g = { az: p.az, pol: p.pol, r: p.r, ty: p.ty };
+        const g = { az: p.az, pol: p.pol, r: p.r, ty: p.ty, lx: p.tx ?? 0, lz: p.tz ?? 0 };
         goal.current = g;
-        spr.az.snap(g.az);
-        spr.pol.snap(g.pol);
-        spr.r.snap(g.r);
-        spr.ty.snap(g.ty);
         touched.current = true;
-        place();
+        snapTo(g);
         invalidate();
       },
       reset: () => {
-        look.current = { x: 0, z: 0 };
         touched.current = false;
         fling.current.vAz = 0;
         fling.current.vPol = 0;
@@ -389,22 +476,17 @@ export function CameraRig() {
       spr.az.settled(goalAz, 0.0004, 0.002) &&
       spr.pol.settled(g.pol, 0.0004, 0.002) &&
       spr.r.settled(g.r, 0.0008, 0.004) &&
-      spr.ty.settled(g.ty, 0.0004, 0.004);
+      spr.ty.settled(g.ty, 0.0004, 0.004) &&
+      spr.lx.settled(g.lx, 0.0008, 0.004) &&
+      spr.lz.settled(g.lz, 0.0008, 0.004);
     if (settled && !drag.current.active && f.vAz === 0 && f.vPol === 0) {
-      if (spr.az.x !== goalAz || spr.pol.x !== g.pol || spr.r.x !== g.r || spr.ty.x !== g.ty) {
-        spr.az.snap(goalAz);
-        spr.pol.snap(g.pol);
-        spr.r.snap(g.r);
-        spr.ty.snap(g.ty);
-        place();
+      if (spr.az.x !== goalAz || spr.pol.x !== g.pol || spr.r.x !== g.r || spr.ty.x !== g.ty || spr.lx.x !== g.lx || spr.lz.x !== g.lz) {
+        snapTo({ ...g, az: goalAz });
       }
       return;
     }
     if (reduced) {
-      spr.az.snap(goalAz);
-      spr.pol.snap(g.pol);
-      spr.r.snap(g.r);
-      spr.ty.snap(g.ty);
+      snapTo({ ...g, az: goalAz });
       f.vAz = 0;
       f.vPol = 0;
     } else {
@@ -413,6 +495,8 @@ export function CameraRig() {
       spr.pol.step(g.pol, w, dt);
       spr.r.step(g.r, w, dt);
       spr.ty.step(g.ty, w, dt);
+      spr.lx.step(g.lx, w, dt);
+      spr.lz.step(g.lz, w, dt);
     }
     place();
     stage.boost.current = performance.now() + 300;
