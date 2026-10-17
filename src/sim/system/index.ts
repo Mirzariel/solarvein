@@ -22,3 +22,6 @@ export * from './day';
 export * from './assumptions/day';
 export { REFERENCES } from '../references';
 export type { RefId, Reference } from '../references';
+export * from './labels';
+export { MODE_TARGETS, stepAt, routerSnapshot, modeBands, pumpStarts, stackedAlloc, cumulative, desiccantInputFor, pvGainWePerWth, simKey, fullKey, createSystemView, getSystemView } from './views';
+export type { StackedAllocPoint, CumulativePoint, AssumptionWithModule, SystemView } from './views';
