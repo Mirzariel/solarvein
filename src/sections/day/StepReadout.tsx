@@ -4,6 +4,7 @@ import { cumulativeAt, clockLabel, dayNumber, type DayModel } from '../../charts
 import { ModeSwatch } from '../../charts/day/ModeHatch';
 import { TankGauge } from '../../charts/day/TankGauge';
 import { BoltIcon, formatId, formatWithUnit } from '../../ui';
+import { useDayStep } from './hourBus';
 import { Val } from './units';
 
 function Row({ swatch, label, children }: { swatch: ReactNode; label: string; children: ReactNode }) {
@@ -105,4 +106,15 @@ export function StepDetails({ step, model, hour }: { step: DayStep; model: DayMo
       </p>
     </div>
   );
+}
+
+/** Subscribes to the playhead itself, so a sweep tick re-renders only this leaf (not the whole section). */
+export function LiveReadout({ model }: { model: DayModel }) {
+  const { step, hour } = useDayStep();
+  return <StepReadout step={step} model={model} hour={hour} />;
+}
+
+export function LiveDetails({ model }: { model: DayModel }) {
+  const { step, hour } = useDayStep();
+  return <StepDetails step={step} model={model} hour={hour} />;
 }

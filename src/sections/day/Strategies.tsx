@@ -1,11 +1,14 @@
 import type { ReactNode } from 'react';
 import { LABELS, type AnnualResult, type AreaSweepPoint, type RouterStrategy } from '../../sim/system';
-import { useAreaSweep, useYear } from '../../state/systemSelectors';
+import { useYear } from '../../state/systemSelectors';
+import { useAreaSweepChunked } from './useAreaSweepChunked';
 import { ChartCard } from '../../charts/ChartCard';
 import { Evidence, formatId, formatWithUnit } from '../../ui';
 import { Val } from './units';
 
 const STRATEGIES: readonly RouterStrategy[] = ['dhw-priority', 'fixed-schedule', 'adaptive'];
+/** The area table compares these two only (fixed-schedule is shown in the annual table). */
+const AREA_STRATEGIES: readonly RouterStrategy[] = ['dhw-priority', 'adaptive'];
 const AREAS = [85, 170, 340];
 const EPS_KWH = 50; // below this a difference in annual kWh_th is not meaningful at this model's accuracy
 
@@ -106,7 +109,7 @@ export function Strategies() {
   const fixed = useYear('fixed-schedule');
   const adaptive = useYear('adaptive');
   const years: Record<RouterStrategy, AnnualResult> = { 'dhw-priority': dhw, 'fixed-schedule': fixed, adaptive };
-  const sweep = useAreaSweep(AREAS, [...STRATEGIES]);
+  const { points: sweep, done: sweepDone } = useAreaSweepChunked(AREAS, AREA_STRATEGIES, true);
 
   const adaptivePts = AREAS.map((a) => sweep.find((p) => p.areaM2 === a && p.strategy === 'adaptive')).filter((p): p is AreaSweepPoint => !!p);
   const maxTotal = Math.max(1, ...adaptivePts.map((p) => p.dhwSolarKWhThPerYear + p.bypassKWhThPerYear));
@@ -155,7 +158,7 @@ export function Strategies() {
         title="Luas panel dan surplus"
         unit={<span className="inline-flex items-center gap-2"><Evidence tag="simulasi" /> <span>strategi Adaptif, kWh<sub>th</sub>/tahun</span></span>}
         subtitle="Pada luas besar, panas yang tidak dipakai (bypass) cepat bertambah; panas itu dilepas lewat pembuang panas (dry cooler)."
-        footer={areaSentence(sweep)}
+        footer={sweepDone ? areaSentence(sweep) : 'Menghitung luas panel satu per satu…'}
       >
         <ul className="m-0 list-none p-0">
           {adaptivePts.map((p) => {
