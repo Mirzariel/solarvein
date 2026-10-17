@@ -16,3 +16,5 @@ export * from './assumptions/hotel';
 export * from './assumptions/tank';
 export * from './assumptions/dhw';
 export * from './assumptions/heatpump';
+export * from './desiccant';
+export * from './assumptions/desiccant';
