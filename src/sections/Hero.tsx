@@ -1,11 +1,12 @@
 import gsap from 'gsap';
-import { Suspense, lazy, useMemo, useRef } from 'react';
-import { useMediaQuery } from '../hooks';
-import { WeatherSky, useScrollScene } from '../motion';
+import { Suspense, lazy, useEffect, useMemo, useRef } from 'react';
+import { useMediaQuery, useReducedMotion } from '../hooks';
+import { ScrollTrigger, WeatherSky, useScrollScene } from '../motion';
 import { LABELS, MODE_TARGETS, type ModeTarget } from '../sim/system';
 import { useStep } from '../state/systemSelectors';
 import { useSystemStore } from '../state/system';
 import { SISTEM } from '../content/sistem';
+import { createStageStore } from '../viz3d/stage';
 import { Evidence, InfoTip, SectionHeader, SegmentedControl, type SegmentedOption } from '../ui';
 import { DetailPanel } from './hero/DetailPanel';
 import { ElectricReadout, HeatReadout } from './hero/LiveReadout';
@@ -20,6 +21,12 @@ const CollectorStage = lazy(() => import('../viz3d/CollectorStage'));
 /** A / B / C are CONDITIONS (scenario + time); the labels name them, the controller computes the real mode. */
 const TARGETS = Object.keys(MODE_TARGETS) as ModeTarget[];
 const OPTIONS: readonly SegmentedOption<ModeTarget>[] = TARGETS.map((k) => ({ value: k, label: LABELS.modeTarget[k] }));
+/** Narrow screens: the first word of the same label (full label stays in the tooltip / accessible name). */
+const OPTIONS_SHORT: readonly SegmentedOption<ModeTarget>[] = TARGETS.map((k) => ({
+  value: k,
+  label: LABELS.modeTarget[k].split(/[ &]/)[0] ?? LABELS.modeTarget[k],
+  description: LABELS.modeTarget[k],
+}));
 
 /** While the 3D chunk loads, show a still rendered from the same model (public/images/renders) instead of an empty box. */
 function StageFallback() {
@@ -58,12 +65,13 @@ function ModeSwitch({ wide }: { wide: boolean }) {
   const target = useSystemStore((s) => s.modeTarget);
   const setModeTarget = useSystemStore((s) => s.setModeTarget);
   const custom = target === 'custom';
+  const sm = useMediaQuery('(min-width: 640px)', true);
   const tone = wide ? 'stage' : 'page';
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
       <SegmentedControl
         ariaLabel={SISTEM.switchLabel}
-        options={OPTIONS}
+        options={sm ? OPTIONS : OPTIONS_SHORT}
         value={custom ? 'A' : target}
         noSelection={custom}
         onChange={setModeTarget}
@@ -90,13 +98,19 @@ function ModeSwitch({ wide }: { wide: boolean }) {
  * computed mode with its reason, the two array readouts (Listrik, Panas) and the one-line router split form the strip.
  * Everything live reads the v2 DayStep at the store hour; the camera is never touched by a condition change.
  *
- * TODO(W6): when the stage store exposes the hotel pull-back framing, drive it from this section's scroll progress
- * (card enters: close on the array; card centred: pulled back to the hotel roof). `[data-stage-card]` is the trigger.
+ * Pull-back: the stage store's framing (0 = panel, 1 = hotel roof) is scrubbed by this section's scroll, so the camera
+ * opens on the collector and retreats to the hotel roof as the card reaches the eye line. A/B/C never moves the camera.
+ * Reduced motion: no scrub, the stage rests on the hotel framing.
  */
 export default function Hero() {
   const wide = useMediaQuery('(min-width: 1024px)', true);
   const tablet = useMediaQuery('(min-width: 768px)', true);
   const root = useRef<HTMLElement>(null);
+  const store = useMemo(() => createStageStore({ exploded: false }), []);
+  const reduce = useReducedMotion();
+  useEffect(() => {
+    if (reduce) store.getState().setFraming('hotel');
+  }, [reduce, store]);
 
   // Depth on entry: the stage card arrives slightly smaller and tilted back, and settles flat as it reaches the eye line.
   useScrollScene(root, ({ desktop }) => {
@@ -105,7 +119,14 @@ export default function Hero() {
       { scale: desktop ? 0.9 : 0.96, rotateX: desktop ? 9 : 0, y: desktop ? 40 : 16, transformPerspective: 1600, transformOrigin: '50% 100%' },
       { scale: 1, rotateX: 0, y: 0, ease: 'none', scrollTrigger: { trigger: '[data-stage-card]', start: 'top bottom', end: 'top 30%', scrub: 0.5 } },
     );
-    gsap.fromTo('[data-strip] > *', { autoAlpha: 0, y: 16 }, { autoAlpha: 1, y: 0, stagger: 0.08, duration: 0.8, ease: 'power3.out', scrollTrigger: { trigger: '[data-stage-card]', start: 'top 45%', once: true } });
+    // camera pull-back, scrubbed with the card's approach (continuous 0..1; the camera springs after it)
+    ScrollTrigger.create({
+      trigger: '[data-stage-card]',
+      start: 'top 85%',
+      end: 'top 15%',
+      onUpdate: (self) => store.getState().setFraming(self.progress),
+    });
+    if (root.current?.querySelector('[data-strip]')) gsap.fromTo('[data-strip] > *', { autoAlpha: 0, y: 16 }, { autoAlpha: 1, y: 0, stagger: 0.08, duration: 0.8, ease: 'power3.out', scrollTrigger: { trigger: '[data-stage-card]', start: 'top 45%', once: true } });
   });
 
   return (
@@ -130,7 +151,7 @@ export default function Hero() {
         <div data-stage-card data-tone="stage" className="mt-10 overflow-hidden rounded-[20px] bg-stage-0 text-stage-ink shadow-4 will-change-transform lg:mt-14 lg:rounded-[28px]">
           <div className="relative h-[360px] sm:h-[480px] lg:h-[clamp(480px,calc(100svh-18rem),700px)]">
             <Suspense fallback={<StageFallback />}>
-              <CollectorStage zoomButtons={tablet} hint>
+              <CollectorStage store={store} zoomButtons={tablet} hint>
                 {wide ? (
                   <div className="absolute left-5 top-5 z-20 flex items-center gap-4 rounded-full bg-stage-0/80 py-1 pl-1 pr-5 shadow-e2 ring-1 ring-white/10">
                     <ModeSwitch wide />

@@ -27,7 +27,7 @@ export const SISTEM = {
 export const SISTEM_DALAM = {
   index: { n: '02', label: 'Di dalam kolektor' },
   title: ['Empat lapis.', 'Satu jalur cairan.'] as const,
-  hint: 'Nilai dari kondisi yang dipilih di Sistem. Tampilan terurai, bukan skala.',
+  hint: 'Nilai satu modul pada kondisi acuan. Tampilan terurai, bukan skala.',
   listLabel: 'Bagian kolektor',
   emptyPick: 'Pilih satu bagian untuk melihat perannya.',
 } as const;

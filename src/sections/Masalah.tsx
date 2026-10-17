@@ -38,7 +38,7 @@ export default function Masalah() {
                     {l.name}
                   </StatusDot>
                 </h3>
-                <p className="mt-3 max-w-[34ch] text-body text-ink-2 sm:min-h-[6.5rem]">{l.sentence}</p>
+                <p className="mt-3 max-w-[34ch] text-body text-ink-2 sm:min-h-[4.5rem]">{l.sentence}</p>
                 <p className="mt-6 flex flex-wrap items-baseline gap-x-2">
                   <span className="num text-readout-xl text-ink">{l.stat}</span>
                   <span className="num text-mono-s text-ink-2">{l.statUnit}</span>
@@ -50,7 +50,7 @@ export default function Masalah() {
           </div>
 
           <figure className="m-0 lg:col-span-5">
-            <div data-masalah-photo className="relative aspect-[4/3] overflow-hidden rounded-[16px] lg:aspect-[4/5] lg:rounded-[20px]">
+            <div data-masalah-photo className="relative aspect-[4/3] overflow-hidden rounded-[16px] lg:aspect-[5/4] lg:rounded-[20px]">
               <Picture fill name="roof-aisle" alt={MASALAH.picture.alt} position="50% 50%" sizes="(min-width: 1024px) 40vw, 100vw" maxWidth={1280} />
             </div>
             <figcaption className="mt-3 text-small text-ink-3">{MASALAH.picture.caption}</figcaption>

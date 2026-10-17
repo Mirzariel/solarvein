@@ -24,7 +24,7 @@ export const MASALAH = {
     {
       id: 'air-panas',
       name: 'Air panas',
-      sentence: 'Air untuk mandi dan dapur dipanaskan dengan bahan bakar atau listrik, setiap hari.',
+      sentence: 'Air mandi dan dapur dipanaskan setiap hari dengan bahan bakar atau listrik.',
       stat: '382.160',
       statUnit: 'kamar',
       statCaption: 'di 4.129 hotel berbintang, Indonesia 2023',
@@ -33,10 +33,10 @@ export const MASALAH = {
     {
       id: 'udara-lembap',
       name: 'Udara segar lembap',
-      sentence: 'Pendingin ruangan mendinginkan dan mengeringkan udara luar; di hotel yang diaudit, inilah pemakai listrik terbesar.',
+      sentence: 'Pendingin ruangan mengeringkan udara luar yang lembap.',
       stat: '48,5–71,3',
       statUnit: '%',
-      statCaption: 'listrik hotel dipakai pendingin ruangan (profil ESDM 2000; audit satu hotel di Semarang)',
+      statCaption: 'listrik hotel untuk pendingin ruangan (profil ESDM 2000; audit satu hotel di Semarang)',
       refId: 'ariwibowo2011-hotel-audit',
     },
   ] satisfies MasalahLoad[],

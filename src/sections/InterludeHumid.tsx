@@ -8,7 +8,7 @@ import { Evidence, Picture, formatId } from '../ui';
 /**
  * Jeda B (#jeda-lembap): the humidity mood before the desiccant path. Graphite, short, unpinned: two lines and the one
  * pair of numbers that earns them, read from the same deterministic weather the sim uses (a rainy afternoon, 15:00).
- * The picture slot uses an existing photo, tinted away to near-black, until a condensation photograph is added
+ * The picture slot uses an existing photo, greyed and dimmed to near-black, until a condensation photograph is added
  * (swap `name` below; caption stays "Ilustrasi, bukan dokumentasi proyek").
  * NOT wired into App.tsx by this worker; the lead mounts it between #sehari and #desikan.
  */
@@ -37,10 +37,10 @@ export default function InterludeHumid() {
           <Picture fill name="cell-macro" alt="" position="50% 40%" maxWidth={1280} imgClassName="grayscale" />
         </div>
         <div className="page-wrap relative w-full">
-          <p data-l1 className="max-w-[20ch] text-display-l text-white">
+          <p data-l1 className="max-w-[28ch] text-display-l text-white">
             {JEDA_LEMBAP.lines[0]}
           </p>
-          <p data-l2 className="mt-6 max-w-[20ch] text-display-l text-white/60">
+          <p data-l2 className="mt-6 max-w-[28ch] text-display-l text-white/60">
             {JEDA_LEMBAP.lines[1]}
           </p>
           <dl data-nums className="mt-12 flex flex-wrap items-end gap-x-12 gap-y-6">
