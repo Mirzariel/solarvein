@@ -1,0 +1,16 @@
+/* 04 Sehari di hotel: the few rules Tailwind utilities do not cover. */
+#sehari figure[data-export] svg text {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* The scrubber is a custom slider: give it a clear, non-clipped focus ring. */
+#sehari .sv-scrub:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 3px;
+}
+
+/* Playhead hit area must not select text while dragging. */
+#sehari figure[data-export] {
+  user-select: none;
+  -webkit-user-select: none;
+}
