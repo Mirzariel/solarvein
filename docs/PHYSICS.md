@@ -1,5 +1,10 @@
 # SolarVein Liquid — Physics Model
 
+> **v1 (historis).** Dokumen ini menggambarkan konsep lama "dual-mode Cerah/Hujan" (panen panas + pembuangan panas)
+> yang sudah dihapus dari kode pada cutover v2. Disimpan sebagai riwayat; jangan dipakai sebagai kontrak.
+> Kontrak berlaku: [CONTRACT-v2.md](CONTRACT-v2.md). Fisika berlaku: [physics/collector.md](physics/collector.md),
+> [physics/desiccant.md](physics/desiccant.md), [physics/carbon.md](physics/carbon.md). Neraca energi, ε-NTU, pompa, stagnasi, dan batas kondensasi di `src/sim/model.ts` tetap berlaku; bagian pembuangan panas, atribusi hujan, dan pendingin pengganti dihapus.
+
 Source of truth: `src/sim/model.ts` (constants in `MODEL_CONSTANTS`). This document describes what the code does and why.
 It is an **educational conceptual model**, not validated CFD and not field data.
 

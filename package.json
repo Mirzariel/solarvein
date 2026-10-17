@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "SolarVein Liquid — interactive dual-mode PVT (photovoltaic-thermal) engineering visualization",
+  "description": "SolarVein — Adaptive Solar Thermal Recovery for Low-Carbon Hospitality: interactive simulation of a liquid PV/T roof array, adaptive thermal router, hot-water preheat and desiccant research path for hotels",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

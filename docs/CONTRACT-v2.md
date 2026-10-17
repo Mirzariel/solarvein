@@ -6,10 +6,10 @@ Concept: **Adaptive Solar Thermal Recovery for Low-Carbon Hospitality** (HORIZON
 net energy and economics vs baselines B1 conventional hotel, B2 PV + HPWH + efficient HVAC, B3 PV/T DHW only,
 B4 AC-condenser heat recovery for DHW. The approved plan is the source of truth for scope.
 
-The old `docs/CONTRACT.md` (dual-mode Cerah/Hujan) stays valid for v1 code until the cutover commit.
+The old `docs/CONTRACT.md` (dual-mode Cerah/Hujan) is history: the v1 code was removed at the cutover.
 
 ## Binding interfaces
-- Collector: `src/sim/model.ts` `simulate(SimInputs, CollectorConfig)` (W1 adds `'pvt-liquid'`).
+- Collector: `src/sim/model.ts` `simulate(SimInputs, CollectorConfig)` (configs: `'pvt-liquid'` harvest-only, `'conventional-pv'`).
 - System: **`src/sim/system/contract.ts`** — read it fully before writing code. It lists every public
   function signature per module at the bottom.
 - Barrel: `src/sim/system/index.ts` (lead only).
@@ -37,7 +37,7 @@ The old `docs/CONTRACT.md` (dual-mode Cerah/Hujan) stays valid for v1 code until
 
 ## Wave 2 (UI) interface — lead-owned
 - State: `src/state/system.ts` (`useSystemStore`: sys, hotelPreset, scenario, strategy, hour, modeTarget, dayView,
-  desiccantRegenC, regenAir, presentation, scene + actions). v1 `src/state/store.ts` stays until cutover.
+  desiccantRegenC, regenAir, presentation, scene + actions). The v1 store was removed at the cutover; per-stage 3D viewer state lives in `src/viz3d/stage.tsx`.
 - Selectors: `src/state/systemSelectors.ts` — `useSystem, useSystemView, useDeferredSystemView, useDay, useStep,
   useRouterSnapshot, useYear, useBaselines, useAreaSweep, useDesiccantSweep, useHeatUses`. Views call only these.
 - View helpers & labels: `src/sim/system/views.ts`, `labels.ts` (LABELS, DESICCANT_STATUS, SIM_BADGE, DESICCANT_NOT_BENEFICIAL).
