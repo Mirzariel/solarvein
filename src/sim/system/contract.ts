@@ -225,7 +225,11 @@ export type RouterReason =
   | 'lepas-simpanan'; // mode C/B: tank discharges to DHW
 
 export interface RouterInput {
-  /** Heat the running collector would deliver at the current inlet [W_th] (≥ 0). */
+  /**
+   * Heat the running collector would deliver at the current inlet [W_th] (≥ 0).
+   * collectorOutletC below = the collector SENSOR temperature: with the pump off it is the stagnant
+   * absorber/cell temperature (start decision, onK); with the pump running it is the outlet (stop, offK).
+   */
   qAvailableW: number;
   collectorOutletC: number;
   tankTopC: number;
@@ -309,7 +313,7 @@ export interface DayStep {
 
 export interface DayTotals {
   pvKWhE: KWhE;
-  /** All added electricity of the system: circulation pumps, controller, desiccant fans (NOT heat-pump work). */
+  /** Added electricity in the headline: circulation pumps + controller only (NOT heat-pump work; desiccant fans/after-cooler live inside hvacSavedKWhE). */
   parasiticKWhE: KWhE;
   collectedKWhTh: KWhTh;
   dhwDemandKWhTh: KWhTh;
