@@ -68,11 +68,15 @@ export function Tooltip({ content, children, side = 'top', delay = 400, tone = '
       <span
         id={id}
         role="tooltip"
+        // Closed tooltips are clipped (sr-only) so they never widen the page on narrow screens; still announced.
         className={cx(
-          'pointer-events-none absolute z-40 w-max max-w-64 rounded-sm px-2 py-1 text-mono-label transition-ui',
-          POS[side],
-          tone === 'stage' ? 'border border-stage-line bg-stage-1 text-stage-ink' : 'border border-line-strong bg-surface text-ink shadow-pop',
-          open ? 'opacity-100' : 'opacity-0',
+          open
+            ? cx(
+                'pointer-events-none absolute z-40 w-max max-w-[min(16rem,calc(100vw-2rem))] rounded-sm px-2 py-1 text-mono-label',
+                POS[side],
+                tone === 'stage' ? 'border border-stage-line bg-stage-1 text-stage-ink' : 'border border-line-strong bg-surface text-ink shadow-pop',
+              )
+            : 'sr-only',
         )}
         aria-hidden={!open}
       >
