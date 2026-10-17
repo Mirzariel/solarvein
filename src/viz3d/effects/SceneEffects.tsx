@@ -2,7 +2,6 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useRef } from 'react';
 import { useReducedMotion } from '../../hooks';
 import { weather } from '../../motion/engine';
-import { useStore } from '../../state/store';
 import { useStageOptional } from '../stage';
 import { useExplodeFactor } from '../useExplodeFactor';
 import { AmbientMood } from './AmbientMood';
@@ -12,6 +11,9 @@ import { Rain } from './Rain';
 import { Sunlight } from './Sunlight';
 import { deriveTargetsInto, makeTargets } from './targets';
 import type { EffectProps } from './shared';
+
+/** The v1 viewer toggle is retired: heat arrows always follow the sim. */
+const showHeatArrows = true;
 
 /**
  * All simulation-driven overlays for the collector scene. Render inside <Canvas>, in the collector's
@@ -25,7 +27,6 @@ import type { EffectProps } from './shared';
  * gets wet or cooler-looking.
  */
 export function SceneEffects() {
-  const showHeatArrows = useStore((s) => s.showHeatArrows);
   const reduced = useReducedMotion();
   const invalidate = useThree((s) => s.invalidate);
   const explode = useExplodeFactor();

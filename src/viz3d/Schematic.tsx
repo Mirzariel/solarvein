@@ -13,7 +13,7 @@
  * fallback = `CutawayFallback`).
  */
 import { useId } from 'react';
-import { useSimResult } from '../state/selectors';
+import { referenceResult } from '../sim';
 import { formatId } from './fmt';
 import { fluidProgress, rampHex, rampPosition } from './palette';
 import { PARTS, type PartId } from './parts';
@@ -109,7 +109,7 @@ function Arrow({ x, y, len, color, width = 3 }: { x: number; y: number; len: num
 
 export function Schematic({ tone, compact = false, highlight = null, className }: SchematicProps) {
   const t = THEMES[tone];
-  const r = useSimResult();
+  const r = referenceResult();
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
 
   // compact = simplified mobile variant: narrower viewBox so the text stays >= 12 px on a 340 px stage
