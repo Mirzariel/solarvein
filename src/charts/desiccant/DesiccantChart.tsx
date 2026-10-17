@@ -13,7 +13,7 @@ const TICK = { fontFamily: 'var(--font-mono)', fontSize: 12 } as const;
 const HALO = { paintOrder: 'stroke', stroke: 'var(--color-paper)', strokeWidth: 4 } as const;
 const L = 48;
 const R = 12;
-const TOP = 14;
+const TOP = 30;
 const BOTTOM = 34;
 
 const SERIES: Record<RegenAirSource, { color: string; dash: string; label: string }> = {
@@ -103,8 +103,11 @@ export const DesiccantChart = memo(function DesiccantChart({ width, series, yMin
       <text x={L + 4} y={plotB - 6} fill="var(--color-ink-3)" {...TICK} fontSize={11} style={HALO}>
         boros listrik
       </text>
-      <text x={L - 8} y={plotT - 4} textAnchor="end" fill="var(--color-ink-3)" {...TICK} fontSize={11}>
-        kWe
+      <text x={L - 8} y={plotT - 14} textAnchor="end" fill="var(--color-ink-3)" {...TICK} fontSize={11}>
+        kW
+        <tspan dy="3" fontSize="8">
+          e
+        </tspan>
       </text>
 
       {/* selected column */}

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { useReducedMotion } from '../../ui';
 import { useSystemStore } from '../../state/system';
+import { commitLiveHour, setLiveHour } from './hourBus';
 
 const FROM_H = 6;
 const TO_H = 24;
@@ -23,6 +24,7 @@ export function useEntrySweep(block: RefObject<HTMLElement | null>): { replay: (
   const stop = useCallback(() => {
     cancelAnimationFrame(raf.current);
     raf.current = 0;
+    commitLiveHour();
     setRunning(false);
   }, []);
 
@@ -34,10 +36,13 @@ export function useEntrySweep(block: RefObject<HTMLElement | null>): { replay: (
     const t0 = performance.now();
     const tick = (now: number) => {
       const p = Math.min(1, (now - t0) / DURATION_MS);
-      useSystemStore.getState().setHour(FROM_H + (TO_H - FROM_H) * ease(p));
-      if (p < 1) raf.current = requestAnimationFrame(tick);
-      else {
+      const h = FROM_H + (TO_H - FROM_H) * ease(p);
+      setLiveHour(h);
+      if (p < 1) {
+        raf.current = requestAnimationFrame(tick);
+      } else {
         raf.current = 0;
+        commitLiveHour();
         setRunning(false);
       }
     };
@@ -78,6 +83,7 @@ export function useEntrySweep(block: RefObject<HTMLElement | null>): { replay: (
       el.removeEventListener('touchstart', stop, true);
       el.removeEventListener('keydown', stop, true);
       cancelAnimationFrame(raf.current);
+      commitLiveHour();
     };
   }, [block, stop]);
 

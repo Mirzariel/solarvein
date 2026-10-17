@@ -1,6 +1,6 @@
 import { useRef, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { LABELS } from '../../sim/system';
-import { useStep } from '../../state/systemSelectors';
+import { useDayStep } from './hourBus';
 import { useSystemStore } from '../../state/system';
 import { ModeHatchDefs, modeFill, useHatchId } from '../../charts/day/ModeHatch';
 import { GUTTER_L, GUTTER_R } from '../../charts/day/DayChart';
@@ -16,9 +16,8 @@ const THUMB_W = 14;
  * ←/→ 15 min · PageUp/PageDown 1 h · Home/End ends of the range.
  */
 export function Scrubber({ model, width }: { model: DayModel; width: number }) {
-  const hour = useSystemStore((s) => s.hour);
   const setHour = useSystemStore((s) => s.setHour);
-  const step = useStep();
+  const { step, hour } = useDayStep();
   const uid = useHatchId();
   const dragging = useRef(false);
   const trackW = Math.max(40, width - GUTTER_L - GUTTER_R);

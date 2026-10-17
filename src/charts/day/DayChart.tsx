@@ -1,6 +1,7 @@
 import { memo, useCallback, useRef, type PointerEvent as ReactPointerEvent } from 'react';
 import { stepAt, LABELS, type DayResult } from '../../sim/system';
 import { useSystemStore } from '../../state/system';
+import { useDayHour } from '../../sections/day/hourBus';
 import { formatId } from '../../ui';
 import { ModeHatchDefs, modeFill, useHatchId } from './ModeHatch';
 import { bandPath, linePath, linear } from './scales';
@@ -98,12 +99,12 @@ export const DayTracks = memo(function DayTracks({ model, width, domains }: Trac
 
   const gap = model.bands.map((b) => X(b.t1) - X(b.t0));
 
-  const titles: Array<[TrackId, string, string]> = [
-    ['bands', 'Mode', ''],
-    ['g', 'Radiasi', 'W/m²'],
-    ['alloc', 'Air panas', 'kWth'],
-    ['soc', 'Isi tangki', '%'],
-    ['pv', 'Listrik PV', 'kWe'],
+  const titles: Array<[TrackId, string, string, string]> = [
+    ['bands', 'Mode', '', ''],
+    ['g', 'Radiasi', 'W/m²', ''],
+    ['alloc', 'Air panas', 'kW', 'th'],
+    ['soc', 'Isi tangki', '%', ''],
+    ['pv', 'Listrik PV', 'kW', 'e'],
   ];
 
   const rowTicks = (id: TrackId, vals: number[], yf: (v: number) => number, label: (v: number) => string) =>
@@ -136,10 +137,20 @@ export const DayTracks = memo(function DayTracks({ model, width, domains }: Trac
       ))}
 
       {/* track titles */}
-      {titles.map(([id, name, unit]) => (
+      {titles.map(([id, name, unit, sub]) => (
         <text key={id} x={plotL} y={tracks[id].y0 - 8} fill="var(--color-ink-2)" {...TICK} style={HALO}>
           {name}
-          {unit ? <tspan fill="var(--color-ink-3)"> · {unit}</tspan> : null}
+          {unit ? (
+            <tspan fill="var(--color-ink-3)">
+              {' · '}
+              {unit}
+              {sub ? (
+                <tspan dy="3" fontSize="9">
+                  {sub}
+                </tspan>
+              ) : null}
+            </tspan>
+          ) : null}
         </text>
       ))}
 
@@ -229,7 +240,7 @@ const SNAP_H = 0.25;
 
 /** Playhead + pointer scrubbing. Reads/writes only the store hour; the static tracks never re-render. */
 export function DayPlayhead({ day, model, width, domains }: PlayheadProps) {
-  const hour = useSystemStore((s) => s.hour);
+  const hour = useDayHour();
   const setHour = useSystemStore((s) => s.setHour);
   const multi = model.tMax > 24;
   const L = layoutTracks(width, multi);
