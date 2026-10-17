@@ -8,7 +8,7 @@ import type { SimResult } from '../sim';
 import type { ClimatePoint, RouterSnapshot } from '../sim/system';
 import { weather } from './engine';
 import { READOUT_HZ } from './tokens';
-import type { VisualFrame } from './weather';
+import type { VisualFrame } from './frame';
 
 /** Stable frame object (mutated by the engine). Never triggers a render. */
 export function useVisualFrameRef(): VisualFrame {

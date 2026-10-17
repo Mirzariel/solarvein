@@ -7,7 +7,7 @@ export interface SegmentedOption<T extends string> {
   icon?: ReactNode;
   /** Shown as a native tooltip (title). */
   description?: string;
-  /** 6 px mode dot shown on the selected segment only (heat for Cerah, cool for Hujan). */
+  /** 6 px mode dot shown on the selected segment only (heat = amber, cool = moisture blue). */
   dot?: 'heat' | 'cool';
 }
 

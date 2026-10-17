@@ -1,18 +1,7 @@
 export * from './tokens';
 export * from './spring';
 export { weather } from './engine';
-export {
-  createWeatherEngine,
-  planTransition,
-  inputsAt,
-  findZeroCrossing,
-  changedKeys,
-  transitionDistance,
-  type Plan,
-  type VisualFrame,
-  type WeatherEngine,
-  type FrameListener,
-} from './weather';
+export type { VisualFrame, FrameListener } from './frame';
 export {
   useVisualFrameRef,
   useVisualSelect,

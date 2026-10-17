@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { weather } from './engine';
 import { skyLevels } from './sky';
-import type { VisualFrame } from './weather';
+import type { VisualFrame } from './frame';
 
 /**
  * The weather outside the window, from the v2 VISUAL frame (never from a mode flag), so it moves with the same

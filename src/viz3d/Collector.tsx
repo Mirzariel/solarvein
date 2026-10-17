@@ -33,7 +33,7 @@ import { useQuality } from './quality';
 import { CHANNEL_Y, STUB_LENGTH, getHeatedRange, getPassLayout, getSerpentineLUT } from './serpentine';
 import { Spring, dampTo } from './spring';
 import { useStage, useStageState, type StageCtx } from './stage';
-import { useLiveResultRef } from './useLiveResult';
+import { useVisualResultRef } from '../motion/useVisualResultRef';
 
 type Live = MutableRefObject<SimResult>;
 
@@ -361,7 +361,7 @@ const LayerGroup = memo(function LayerGroup({ id, stage, mats, pointer, children
 // ── root ─────────────────────────────────────────────────────────────────────────────────────
 export default function Collector() {
   const stage = useStage();
-  const live = useLiveResultRef();
+  const live = useVisualResultRef();
   const reduced = useReducedMotion();
   const gl = useThree((s) => s.gl);
   const invalidate = useThree((s) => s.invalidate);

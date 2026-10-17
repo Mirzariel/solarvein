@@ -7,27 +7,24 @@
  *  - All temperatures in °C, powers in W, areas in m², flows as stated per field.
  *  - SIGN CONVENTION (used everywhere, UI included):
  *      qLiquidW > 0  → heat flows panel → liquid  (HEAT HARVEST)
- *      qLiquidW < 0  → heat flows liquid → panel → environment (HEAT REJECTION)
+ *      qLiquidW < 0  → heat flows liquid → panel → environment (the collector COOLS the loop: a loss the
+ *                      system controller avoids; the only wanted case is the night heat-pump SOURCE mode)
  *      qFrontLossW / qBackLossW / qRainW > 0 → heat leaves the panel to the environment
  *  - Fluid flow direction is independent of heat-flow direction. The liquid ALWAYS
  *    circulates inlet → outlet; only the sign of qLiquidW changes.
  *  - Thermal watts (W_th) and electrical watts (W_e) are never summed into one number
- *    without an explicit conversion factor (boiler efficiency, cooling COP, …).
+ *    without an explicit conversion factor (heater efficiency, COP, emission factor).
  */
 
 /** Which hardware configuration is being simulated. */
 export type CollectorConfig =
   /** Conventional standalone PV module: no heat exchanger, open (air-cooled) rear side. */
   | 'conventional-pv'
-  /** PVT with rear exchanger + insulation; pump runs only when heat can be HARVESTED into a load. */
-  | 'pvt-harvest-only'
-  /** SolarVein: same PVT hardware; controller may run the pump to harvest OR to reject heat. */
-  | 'solarvein-dual'
   /**
-   * v2 collector: same PV/T hardware, HARVEST ONLY — never rejects heat. With pumpControl 'auto' the pump
+   * Liquid PV/T collector (rear exchanger + insulation), HARVEST ONLY. With pumpControl 'auto' the pump
    * runs only when harvesting is worth it (heat load available); with 'on' it runs regardless (the system
-   * controller decides; qLiquidW < 0 then means the loop is being cooled by the collector, and it never
-   * classifies as 'reject'). With G = 0 and a cold loop it is the heat-pump SOURCE mode (environment → liquid).
+   * controller decides; qLiquidW < 0 then means the loop is being cooled by the collector).
+   * With G = 0 and a cold loop it is the heat-pump SOURCE mode (environment → liquid).
    */
   | 'pvt-liquid';
 
@@ -38,8 +35,6 @@ export type PumpControl = 'auto' | 'on' | 'off';
 export type ThermalRegime =
   /** qLiquidW meaningfully > 0 and a heat load exists. */
   | 'harvest'
-  /** qLiquidW meaningfully < 0 and a hot source needing rejection exists. */
-  | 'reject'
   /** Pump running but |qLiquidW| too small / not beneficial versus pump power. */
   | 'negligible'
   /** Pump off (stagnation, or conventional PV). */
@@ -74,12 +69,13 @@ export interface SimInputs {
   betaPerK: number;
   /** A thermal load that can USE heat at the outlet temperature exists (e.g. DHW preheat). */
   heatLoadAvailable: boolean;
-  /** A warm process loop that NEEDS heat rejection exists (the inlet represents its return). */
-  hotSourceAvailable: boolean;
+  /**
+   * RETIRED (v1 heat-rejection concept). Ignored by every configuration. Kept optional only because
+   * DEFAULT_SYSTEM (src/sim/system/hotel.ts) and its test still set it to false; remove them together.
+   */
+  hotSourceAvailable?: boolean;
   /** Efficiency of the fossil heater displaced by harvested heat [-] (e.g. LPG boiler 0.85). */
   boilerEfficiency: number;
-  /** COP of the cooling equipment displaced by rejected heat [-] (W_th removed per W_e). */
-  coolingCOP: number;
   /**
    * OPTIONAL ambient humidity ratio w [kg/kg dry air]. When given, SimResult.qCondensationUpperW reports a
    * one-sided upper bound of latent gain if the glass is below the dew point (not part of the energy balance).
@@ -98,7 +94,7 @@ export interface TemperatureNode {
 export type AdvisorySeverity = 'info' | 'warning' | 'critical';
 
 export interface Advisory {
-  /** Stable machine code, e.g. 'REJECTION_NOT_BENEFICIAL', 'NO_HOT_SOURCE', 'LOW_IRRADIANCE'. */
+  /** Stable machine code, e.g. 'NO_HEAT_LOAD', 'STAGNATION_HOT', 'LOW_IRRADIANCE'. */
   code: string;
   severity: AdvisorySeverity;
   /** Natural Indonesian message shown verbatim in the UI. */
@@ -141,11 +137,6 @@ export interface SimResult {
   /** Signed heat into the liquid [W_th] (see sign convention). */
   qLiquidW: number;
   /**
-   * Same as qLiquidW but recomputed with rainMmH = 0 (everything else equal, same pump state).
-   * qLiquidW − qLiquidNoRainW is the rain contribution (negative = more heat leaves the liquid).
-   */
-  qLiquidNoRainW?: number;
-  /**
    * OPTIONAL. One-sided UPPER BOUND of latent condensation gain on the glass [W_th] (Lewis analogy), only when
    * inputs.humidityRatio is given and the glass is below the air dew point; 0 otherwise. Report-only, NOT in the
    * energy balance, "batas atas, belum divalidasi".
@@ -164,17 +155,11 @@ export interface SimResult {
   /** Energy-balance residual absorbed − (Pe + qLiquid + losses) [W]; should be ≈ 0. */
   energyBalanceResidualW: number;
 
-  // ── Valuation (only counted when a real load/source exists) ───
+  // ── Valuation (only counted when a real heat load exists) ─────
   /** Harvested heat actually delivered to a load [W_th] (≥ 0). */
   usefulHeatW: number;
-  /** Heat actually removed from a hot process loop [W_th] (≥ 0). */
-  heatRejectedW: number;
   /** Fuel power displaced by usefulHeatW: usefulHeatW / boilerEfficiency [W_fuel]. */
   avoidedFuelW: number;
-  /** Cooling electricity displaced by heatRejectedW: heatRejectedW / coolingCOP [W_e]. */
-  avoidedCoolingElecW: number;
-  /** avoidedCoolingElecW − pumpW [W_e]; negative ⇒ rejection is not worth it. */
-  netCoolingBenefitW: number;
 
   // ── Transparency ──────────────────────────────────────────────
   /** Coefficients actually used, for the assumptions panel [W/(m²·K)]. */
@@ -190,46 +175,4 @@ export interface SimResult {
     effectiveness: number;
   };
   advisories: Advisory[];
-}
-
-/** Hourly (quasi-steady) point for the day-profile time history. */
-export interface DayPoint {
-  hour: number;
-  irradiance: number;
-  ambientC: number;
-  rainMmH: number;
-  result: SimResult;
-}
-
-/** Carbon / energy displacement assumptions (all user-configurable). */
-export interface CarbonAssumptions {
-  /** Grid emission factor [kgCO2e/kWh_e]. */
-  gridKgPerKWh: number;
-  /** Fuel emission factor of the displaced heater [kgCO2e/kWh_fuel] (e.g. LPG ≈ 0.23). */
-  fuelKgPerKWh: number;
-  /** Equivalent full-load operating hours per year for the scenario [h/yr]. */
-  hoursPerYear: number;
-  /** Embodied emissions of the whole SolarVein unit [kgCO2e] (never zero). */
-  embodiedKg: number;
-  /** Whether a cooling system is explicitly being displaced by heat rejection. */
-  coolingDisplacementModeled: boolean;
-  /**
-   * Embodied emissions ADDED by the exchanger/insulation/pump relative to a plain PV module [kgCO2e],
-   * used for the incremental-vs-conventional payback. Optional; default 180.
-   */
-  incrementalEmbodiedKg?: number;
-}
-
-export interface CarbonResult {
-  electricityKgPerYear: number;
-  heatKgPerYear: number;
-  coolingKgPerYear: number;
-  pumpKgPerYear: number;
-  netKgPerYear: number;
-  /** Years to repay embodied emissions; Infinity if net ≤ 0. */
-  carbonPaybackYears: number;
-  /** Net yearly credit minus the conventional-PV baseline's net credit [kgCO2e/yr]. Present when a baseline is given. */
-  incrementalNetKgPerYear?: number;
-  /** incrementalEmbodiedKg / incrementalNetKgPerYear; Infinity if ≤ 0. Present when a baseline is given. */
-  incrementalPaybackYears?: number;
 }

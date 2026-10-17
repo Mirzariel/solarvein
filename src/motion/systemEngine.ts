@@ -26,7 +26,7 @@ import './gsapConfig';
 import { clamp, springStep, type SpringState } from './spring';
 import { SYSTEM_MOTION as M } from './tokens';
 import type { SystemTarget } from './systemTarget';
-import type { VisualFrame, FrameListener } from './weather';
+import type { VisualFrame, FrameListener } from './frame';
 
 export const SINKS: readonly Sink[] = ['dhw', 'tank', 'desiccant', 'bypass'];
 const NUMERIC_KEYS = Object.keys(INPUT_LIMITS) as NumericInputKey[];

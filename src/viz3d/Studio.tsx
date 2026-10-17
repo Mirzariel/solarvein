@@ -19,7 +19,7 @@ import { TIERS } from './quality';
 import { useQuality } from './quality';
 import { clamp01, dampTo } from './spring';
 import { useStage } from './stage';
-import { useLiveResultRef } from './useLiveResult';
+import { useVisualResultRef } from '../motion/useVisualResultRef';
 
 const KEY_SUN = new THREE.Color('#FFEFD9');
 const KEY_OVERCAST = new THREE.Color('#D8E3EC');
@@ -147,7 +147,7 @@ export function Studio() {
   const shadowFloor = useRef<THREE.Mesh>(null);
   const shadowOpacity = useRef<THREE.ShadowMaterial>(null);
   const transparent = stage.background === 'transparent';
-  const live = useLiveResultRef();
+  const live = useVisualResultRef();
   const keyRef = useRef<THREE.DirectionalLight>(null);
   const rimRef = useRef<THREE.DirectionalLight>(null);
   const hemiRef = useRef<THREE.HemisphereLight>(null);

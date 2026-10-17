@@ -9,7 +9,7 @@
  *  - `compact` (narrow stage): numbered markers only; the page shows the list below the stage.
  */
 import { useEffect, useLayoutEffect, useRef } from 'react';
-import { useSimResult } from '../state/selectors';
+import { referenceResult } from '../sim';
 import { INK, INK2, FOCUS_RING, SHADOW_TEXT, SVG_BG, SVG_INK, SVG_INK2 } from './chrome';
 import { r2, setAttrC, setStyleC } from './domWrite';
 import { PARTS, partValue, type PartId } from './parts';
@@ -21,7 +21,7 @@ const GAP = 10;
 
 export function PartAnnotations({ compact }: { compact: boolean }) {
   const stage = useStage();
-  const result = useSimResult();
+  const result = referenceResult();
   const focus = useStageState(stage.store, (s) => s.focusPart);
   const hover = useStageState(stage.store, (s) => s.hoverPart);
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
