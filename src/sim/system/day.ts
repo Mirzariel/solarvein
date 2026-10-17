@@ -35,10 +35,10 @@ import type {
 import { kWhE, kWhTh } from './contract';
 import type { SimInputs } from '../types';
 import { simulate } from '../model';
-import { allocate } from './router';
+import { DESICCANT_HYSTERESIS_K, allocate, inScheduleWindow } from './router';
 import { climateAt, dhwDrawAt } from './hotel';
-import { preheatW } from './dhw';
-import { initialTank, stepTankDetailed, tankEnergyKWhTh, tankUaWPerK, tankGeometry } from './tank';
+import { DEFAULT_PREHEAT_EFFECTIVENESS, drawCapacityWPerK } from './dhw';
+import { initialTank, stepTankDetailed, tankEnergyKWhTh, tankGeometry, tankHeadroomW, tankUaWPerK } from './tank';
 import { heatPumpCop } from './heatpump';
 import { enthalpyKJkg, humidityRatio } from './psychro';
 import { SUPPLY_DB_MARGIN_K, evaluateDesiccant } from './desiccant';
@@ -58,8 +58,6 @@ export const REGEN_HX_APPROACH_K = 3;
 export const REGEN_LOOP_DROP_K = 10;
 /** Usable water capacity of a regenerated bed [kg water per kg desiccant] (≈ effective swing 0,07–0,13, W3 sweep). */
 export const BED_USABLE_CAPACITY_KG_PER_KG = 0.1;
-/** Minimum pump run time after a start, against short cycling [h] (asumsi). */
-export const PUMP_MIN_RUN_H = 0.5;
 /** Bed state at the start of a scenario [0..1]. */
 const INITIAL_BED_CAPACITY = 0.5;
 
@@ -90,6 +88,21 @@ export interface DesiccantStepOut {
   withDesiccantWe: number;
   /** Fans + pump [W_e] inside withDesiccantWe (information only; NOT added to parasitic electricity). */
   parasiticWe: number;
+}
+
+/** evaluateDesiccant for the fresh air at the current outdoor state and a regeneration temperature. */
+function evalDesiccantAt(sys: SystemInputs, c: ClimatePoint, regenC: number) {
+  return evaluateDesiccant({
+    regenC,
+    process: { tC: c.ambientC, humidityRatio: c.humidityRatio },
+    regenAir: sys.desiccant.regenAir,
+    ambient: c,
+    params: sys.desiccant,
+    hotel: sys.hotel,
+    carbon: sys.carbon,
+    pvPenaltyWe: 0,
+    pumpWe: 0,
+  });
 }
 
 /** Reference coil electricity for the fresh air (same formula as evaluateDesiccant's coilRefWe, no bed needed). */
@@ -129,19 +142,7 @@ function desiccantStep(i: DesiccantStepIn): DesiccantStepOut {
   if (!p.enabled) return out;
 
   const capKg = Math.max(p.bedMassKg * BED_USABLE_CAPACITY_KG_PER_KG, 1e-9);
-  const process = { tC: i.climate.ambientC, humidityRatio: i.climate.humidityRatio };
-  const evalAt = (regenC: number) =>
-    evaluateDesiccant({
-      regenC,
-      process,
-      regenAir: p.regenAir,
-      ambient: i.climate,
-      params: p,
-      hotel: sys.hotel,
-      carbon: sys.carbon,
-      pvPenaltyWe: 0,
-      pumpWe: 0,
-    });
+  const evalAt = (regenC: number) => evalDesiccantAt(sys, i.climate, regenC);
 
   let capacity = i.capacity;
   let bedRegenC = i.bedRegenC;
@@ -308,6 +309,40 @@ function normalise(r: RouterState): void {
   for (const s of SINKS) if (r.allocW[s] < 0) r.allocW[s] = 0;
 }
 
+/** Tank accepts collector heat only if the charge fluid exceeds the tank bottom by this margin [K] (asumsi). */
+export const TANK_ACCEPT_MARGIN_K = 1;
+/** Dry-cooler (bypass) return temperature above ambient [K] (asumsi). */
+export const DUMP_APPROACH_K = 8;
+/** Minimum pump run time after a start, against short cycling [h] (asumsi). */
+export const PUMP_MIN_RUN_H = 0.5;
+
+/** Extra per-step DHW chain facts (same objects as DayStep.dhw; proposed for the contract). */
+export interface DhwChainDetail {
+  /** Potable temperature leaving the solar HX chain, before the existing heater [°C]. */
+  potableOutC: number;
+  /** Source temperatures offered to the chain: tank top at the start of the step, collector fluid outlet [°C]. */
+  tankSourceC: number;
+  collectorSourceC: number;
+}
+export type DayStepDetail = DayStep & { dhw: DayStep['dhw'] & DhwChainDetail };
+
+/**
+ * Heat passed by ONE external HX stage in a series chain [W_th]: Q = eps*C*(T_src - T_in), capped so the potable
+ * outlet never exceeds min(T_src, setpoint) (second law). C is the potable capacity rate [W/K].
+ */
+export function hxStageW(cW: number, srcC: number, inC: number, setpointC: number, eps: number): number {
+  if (!(cW > 0) || !(srcC > inC)) return 0;
+  const q = eps * cW * (srcC - inC);
+  const cap = cW * (Math.min(srcC, setpointC) - inC);
+  return Math.max(Math.min(q, cap), 0);
+}
+
+/** State of charge normalised between mains and the useful maximum (DHW setpoint) [0..1]. */
+function usefulSoc(s: Pick<TankState, 'topC' | 'bottomC'>, mainsC: number, setpointC: number): number {
+  const span = Math.max(setpointC - mainsC, 1e-9);
+  return Math.min(Math.max(((s.topC + s.bottomC) / 2 - mainsC) / span, 0), 1);
+}
+
 function runPhase(
   sys: SystemInputs,
   strategy: RouterStrategy,
@@ -320,19 +355,23 @@ function runPhase(
   const { hotel, array, tank: tankP } = sys;
   const mod = array.module;
   const modules = array.modules;
+  const derate = array.systemDerate;
   const params = { ...sys.controller, strategy };
   const nSteps = Math.max(1, Math.round(hours / dtH));
   const acc = newAcc();
   const steps: DayStep[] = [];
   const aperture = modules * mod.areaM2;
   const hpOn = sys.heatPumpSource.enabled;
+  const Tm = hotel.mainsC;
+  const Ts = hotel.dhwSetpointC;
+  const eps = DEFAULT_PREHEAT_EFFECTIVENESS;
 
   let tank = carry.tank;
   let prev = carry.router;
   let capacity = carry.capacity;
   let bedRegenC = carry.bedRegenC;
   let pumpRunH = carry.pumpRunH;
-  const tank0KWh = tankEnergyKWhTh(tank, tankP, hotel.mainsC);
+  const tank0KWh = tankEnergyKWhTh(tank, tankP, Tm);
 
   for (let i = 0; i < nSteps; i++) {
     const tMid = (i + 0.5) * dtH;
@@ -340,6 +379,7 @@ function runPhase(
     const clim = climateFn(tMid);
     const draw = dhwDrawAt(hotel, hourOfDay);
     const G = clim.irradiance;
+    const cDraw = drawCapacityWPerK(draw.drawLph);
 
     const modIn = (inletC: number, pump: 'on' | 'off'): SimInputs => ({
       ...mod,
@@ -351,106 +391,167 @@ function runPhase(
       inletC,
       pumpControl: pump,
     });
+    type Sim = ReturnType<typeof simulate>;
+    const run = (inletC: number): Sim => simulate(modIn(inletC, 'on'), 'pvt-liquid');
 
-    // 1. what the running collector would deliver at the tank-bottom return temperature
-    const inletC = tank.bottomC;
-    const simOn = G > 0 ? simulate(modIn(inletC, 'on'), 'pvt-liquid') : null;
-    const qAvailableW = simOn ? Math.max(0, simOn.qLiquidW) * modules : 0;
-    const outletC = simOn ? simOn.outletC : inletC;
-    // Differential thermostat: START is judged on the collector SENSOR with the pump off (stagnant cell
-    // temperature), STOP on the running outlet. The router applies onK while off and offK while running.
-    let simOff = null as ReturnType<typeof simulate> | null;
-    let sensorC = outletC;
-    if (G > 0 && prev?.pumpOn !== true) {
-      simOff = simulate(modIn(inletC, 'off'), 'pvt-liquid');
-      sensorC = simOff.cellC;
-    } else if (prev?.pumpOn === true && pumpRunH < PUMP_MIN_RUN_H) {
-      // Anti-short-cycling: the pump may not stop on the thermostat for PUMP_MIN_RUN_H after a start.
-      // (A collector that no longer delivers heat, q ≤ 0, still stops: the router requires q > 0.)
-      sensorC = Math.max(outletC, tank.bottomC + params.offK + 1e-6);
+    // 1. collector candidates
+    const bottom = tank.bottomC;
+    const simNom: Sim | null = G > 0 ? run(bottom) : null; // pump forced on, loop returns at the tank bottom
+    const simOff: Sim | null = G > 0 ? simulate(modIn(bottom, 'off'), 'pvt-liquid') : null; // stagnant
+    const outletNom = simNom ? simNom.outletC : bottom;
+    const headW = simNom ? tankHeadroomW(tank, tankP, dtH, outletNom) : 0;
+    const canAccept = !!simNom && outletNom - bottom > TANK_ACCEPT_MARGIN_K && headW > 0;
+
+    const wantDes = sys.desiccant.enabled && capacity < 0.999 && airNeedsDrying(sys, clim);
+    const prevDes = (prev?.allocW.desiccant ?? 0) > 0;
+    const minRegenC = params.desiccantMinRegenC - (prevDes ? DESICCANT_HYSTERESIS_K : 0);
+    const inletAlt = Math.min(bottom, clim.ambientC + DUMP_APPROACH_K);
+
+    let route: 'tank' | 'desiccant' | 'dump' = canAccept ? 'tank' : 'dump';
+    let inletC = bottom;
+    let simSel: Sim | null = simNom;
+    let simDump: Sim | null = null;
+    let desiccantPreferred: boolean | undefined;
+
+    if (simNom) {
+      const dump = (): Sim => (simDump ??= run(inletAlt));
+      if (strategy === 'fixed-schedule' && wantDes && inScheduleWindow(hourOfDay)) {
+        // naive: the clock sends everything to the desiccant, whatever the temperature or the value
+        route = 'desiccant';
+        inletC = Math.min(bottom, Math.max(inletAlt, outletNom - REGEN_LOOP_DROP_K));
+        simSel = run(inletC);
+      } else if (strategy === 'adaptive' && wantDes && (!canAccept || headW < Math.max(0, simNom.qLiquidW) * modules)) {
+        // value gate: desiccant only if its saved kWh_e per kWh_th beats the PV gain of dumping the heat instead
+        const inletD = canAccept ? bottom : Math.min(bottom, Math.max(inletAlt, outletNom - REGEN_LOOP_DROP_K));
+        const simD = inletD === bottom ? simNom : run(inletD);
+        let ok = false;
+        if (simD.outletC >= minRegenC) {
+          const ev = evalDesiccantAt(sys, clim, simD.outletC - REGEN_HX_APPROACH_K);
+          const gain = Math.max(0, (dump().electricalW - simD.electricalW) * derate) / Math.max(simD.qLiquidW, 1);
+          ok = ev.operating && ev.savedKWhEPerKWhTh > gain;
+        }
+        desiccantPreferred = ok;
+        if (!canAccept) {
+          if (ok) {
+            route = 'desiccant';
+            inletC = inletD;
+            simSel = simD;
+          } else {
+            inletC = inletAlt;
+            simSel = dump();
+          }
+        }
+      } else if (!canAccept) {
+        inletC = inletAlt;
+        simSel = dump();
+      }
     }
-    const directCapW = preheatW(draw.drawLph, outletC, hotel.mainsC, hotel.dhwSetpointC);
 
-    // 2. router
-    const desiccantWanted = sys.desiccant.enabled && capacity < 0.999 && airNeedsDrying(sys, clim);
+    const qSel = simSel ? Math.max(0, simSel.qLiquidW) * modules : 0;
+    const outletSel = simSel ? simSel.outletC : inletC;
+
+    // 2. DHW series chain: mains -> cooler source -> hotter source -> existing heater
+    const tankFirst = tank.topC <= outletSel;
+    let tankReq0 = 0;
+    let directCapW: number;
+    if (tankFirst) {
+      tankReq0 = hxStageW(cDraw, tank.topC, Tm, Ts, eps);
+      directCapW = hxStageW(cDraw, outletSel, Tm + (cDraw > 0 ? tankReq0 / cDraw : 0), Ts, eps);
+    } else {
+      directCapW = hxStageW(cDraw, outletSel, Tm, Ts, eps);
+    }
+
+    // Bypassing (cooling the cells) is run only if the PV gain beats the pump power; heat for the draw always may.
+    let qPass = qSel;
+    if (simSel && route === 'dump') {
+      const gainW = (simSel.electricalW - (simOff ? simOff.electricalW : 0)) * derate * modules;
+      const worth = gainW - simSel.pumpW * modules > 0;
+      if (!worth && directCapW <= 0) qPass = 0;
+    }
+
+    // 3. thermostat: the SAME sensor (absorber/cell temperature) for start and stop
+    const prevOn = prev?.pumpOn === true;
+    let sensorC = prevOn ? (simSel ? simSel.cellC : clim.ambientC) : simOff ? simOff.cellC : clim.ambientC;
+    if (prevOn && pumpRunH < PUMP_MIN_RUN_H) {
+      // anti-short-cycling; a collector that delivers no heat (q <= 0) still stops: the router needs q > 0
+      sensorC = Math.max(sensorC, inletC + params.offK + 1e-6);
+    }
+
     const router = allocate({
-      qAvailableW,
+      qAvailableW: qPass,
       collectorOutletC: sensorC,
       tankTopC: tank.topC,
-      tankBottomC: tank.bottomC,
+      tankBottomC: inletC,
       tankMaxC: tankP.maxC,
       dhwDemandW: directCapW,
-      desiccantWanted,
+      desiccantWanted: wantDes,
       irradiance: G,
       hourOfDay,
       params,
       prev,
+      tankAcceptW: route === 'tank' ? headW : 0,
+      desiccantPreferred,
+      regenSourceC: outletSel,
     });
     normalise(router);
 
-    // 3. collector result actually used (pump off → hotter PV, no pump power)
+    // 4. collector result actually used (PV derated; pump off: hotter PV, no pump power)
     let col = {
       inletC,
-      outletC: router.pumpOn ? outletC : inletC,
+      outletC: router.pumpOn ? outletSel : inletC,
       cellC: clim.ambientC,
       electricalW: 0,
-      qLiquidW: router.pumpOn ? qAvailableW : 0,
+      qLiquidW: router.pumpOn ? qPass : 0,
       pumpW: 0,
       etaThermal: 0,
       etaElectrical: 0,
     };
-    if (router.pumpOn && simOn) {
-      col.cellC = simOn.cellC;
-      col.electricalW = simOn.electricalW * modules;
-      col.pumpW = simOn.pumpW * modules;
-    } else if (G > 0) {
-      simOff = simOff ?? simulate(modIn(inletC, 'off'), 'pvt-liquid');
+    if (router.pumpOn && simSel) {
+      col.cellC = simSel.cellC;
+      col.electricalW = simSel.electricalW * modules * derate;
+      col.pumpW = simSel.pumpW * modules;
+    } else if (simOff) {
       col.cellC = simOff.cellC;
-      col.electricalW = simOff.electricalW * modules;
+      col.electricalW = simOff.electricalW * modules * derate;
     }
 
-    // 4. DHW: direct heat from the collector, then the tank top through the external HX
+    // 5. DHW draw
     const directW = router.allocW.dhw;
-    const topRequestW = Math.min(
-      Math.max(0, draw.demandW - directW),
-      preheatW(draw.drawLph, tank.topC, hotel.mainsC, hotel.dhwSetpointC),
-    );
+    let tankReq: number;
+    if (tankFirst) tankReq = tankReq0;
+    else tankReq = hxStageW(cDraw, tank.topC, Tm + (cDraw > 0 ? directW / cDraw : 0), Ts, eps);
+    tankReq = Math.min(tankReq, Math.max(0, draw.demandW - directW));
 
-    // 5. tank
     const chargeReqW = router.allocW.tank;
     const ts = stepTankDetailed(
       tank,
       tankP,
-      {
-        chargeW: chargeReqW,
-        chargeC: outletC,
-        dischargeW: topRequestW,
-        mainsC: hotel.mainsC,
-        ambientC: clim.ambientC,
-      },
+      { chargeW: chargeReqW, chargeC: outletSel, dischargeW: tankReq, mainsC: Tm, ambientC: clim.ambientC },
       dtH,
     );
     const acceptedW = Math.min(chargeReqW, ts.acceptedChargeW);
     const rejectedW = Math.max(0, chargeReqW - acceptedW);
     router.allocW.tank = acceptedW;
     router.allocW.bypass += rejectedW;
-    if (router.pumpOn && qAvailableW > 0) {
-      for (const s of SINKS) router.valves[s] = router.allocW[s] / qAvailableW;
+    if (router.pumpOn && qPass > 0) {
+      for (const s of SINKS) router.valves[s] = router.allocW[s] / qPass;
     }
+    const topSourceC = tank.topC;
     tank = ts.state;
 
-    const fromTankW = ts.deliveredDischargeW;
+    const fromTankW = Math.min(ts.deliveredDischargeW, tankReq);
     let solarW = directW + fromTankW;
     let backupW = Math.max(0, draw.demandW - solarW);
+    const potableOutC = cDraw > 0 ? Tm + solarW / cDraw : Tm;
 
     // 6. heat-pump source option (research): collector as source when it cannot harvest and the tank cannot cover
     let heatPump: DayStep['heatPump'];
     if (hpOn) {
       let hp = { on: false, cop: 0, sourceW: 0, workWe: 0 };
       if (!router.pumpOn && backupW > EPS_W) {
-        const simHp = simulate(modIn(HP_SOURCE_FLUID_C, 'on'), 'pvt-liquid');
+        const simHp = run(HP_SOURCE_FLUID_C);
         const qSrc = Math.max(0, simHp.qLiquidW) * modules;
-        const cop = heatPumpCop(HP_SOURCE_FLUID_C, hotel.dhwSetpointC, sys.heatPumpSource.carnotFraction);
+        const cop = heatPumpCop(HP_SOURCE_FLUID_C, Ts, sys.heatPumpSource.carnotFraction);
         if (qSrc > 0 && cop > 1 + 1e-9) {
           const condMax = (qSrc * cop) / (cop - 1);
           const cond = Math.min(condMax, backupW);
@@ -464,7 +565,7 @@ function runPhase(
               inletC: HP_SOURCE_FLUID_C,
               outletC: simHp.outletC,
               cellC: simHp.cellC,
-              electricalW: simHp.electricalW * modules,
+              electricalW: simHp.electricalW * modules * derate,
               qLiquidW: source,
               pumpW: simHp.pumpW * modules,
               etaThermal: 0,
@@ -478,18 +579,18 @@ function runPhase(
 
     // 7. desiccant path
     let pvPenaltyW = 0;
-    if (simOn && router.allocW.desiccant > 0 && outletC >= params.desiccantMinRegenC) {
-      const regenC = outletC - REGEN_HX_APPROACH_K;
+    if (simSel && router.allocW.desiccant > 0 && outletSel >= params.desiccantMinRegenC) {
+      const regenC = outletSel - REGEN_HX_APPROACH_K;
       const hotIn = Math.max(inletC, regenC - REGEN_LOOP_DROP_K);
-      const hot = simulate(modIn(hotIn, 'on'), 'pvt-liquid');
-      pvPenaltyW = Math.max(0, simOn.electricalW - hot.electricalW) * modules * router.valves.desiccant;
+      const hot = run(hotIn);
+      pvPenaltyW = Math.max(0, simSel.electricalW - hot.electricalW) * modules * derate * router.valves.desiccant;
     }
     const dz = desiccantStep({
       sys,
       capacity,
       bedRegenC,
       allocatedW: router.allocW.desiccant,
-      outletC,
+      outletC: outletSel,
       pvPenaltyW,
       climate: clim,
       dtH,
@@ -504,7 +605,7 @@ function runPhase(
     const k = dtH;
     acc.pvWh += col.electricalW * k;
     acc.parasiticWh += col.pumpW * k; // circulation pump(s) only; desiccant fans live inside hvacSaved
-    if (router.pumpOn) acc.collectedWh += qAvailableW * k;
+    if (router.pumpOn) acc.collectedWh += qPass * k;
     acc.demandWh += draw.demandW * k;
     acc.solarWh += solarW * k;
     acc.backupWh += backupW * k;
@@ -518,13 +619,13 @@ function runPhase(
     if (heatPump) acc.hpWorkWh += heatPump.workWe * k;
 
     if (record) {
-      const step: DayStep = {
+      const step: DayStepDetail = {
         t: tMid,
         hourOfDay,
         climate: clim,
         router,
         collector: col,
-        tank,
+        tank: { ...tank, soc: usefulSoc(tank, Tm, Ts) },
         dhw: {
           drawLph: draw.drawLph,
           demandW: draw.demandW,
@@ -532,6 +633,9 @@ function runPhase(
           fromTankW,
           backupW,
           unmetW: 0,
+          potableOutC,
+          tankSourceC: topSourceC,
+          collectorSourceC: outletSel,
         },
         desiccant: {
           capacity: dz.capacity,
@@ -544,7 +648,7 @@ function runPhase(
       if (heatPump) step.heatPump = heatPump;
       steps.push(step);
     }
-    pumpRunH = router.pumpOn ? (prev?.pumpOn ? pumpRunH + dtH : dtH) : 0;
+    pumpRunH = router.pumpOn ? (prevOn ? pumpRunH + dtH : dtH) : 0;
     prev = router;
   }
 
@@ -553,7 +657,7 @@ function runPhase(
     acc,
     carry: { tank, router: prev, capacity, bedRegenC, pumpRunH },
     tank0KWh,
-    tank1KWh: tankEnergyKWhTh(tank, tankP, hotel.mainsC),
+    tank1KWh: tankEnergyKWhTh(tank, tankP, Tm),
   };
 }
 
@@ -564,7 +668,7 @@ export interface SimulateSystemOpts {
   strategy?: RouterStrategy;
   /** Step length [h]; default 0,25. */
   dtH?: number;
-  /** Number of preceding warm-up days that are run but not recorded (default 2; see assumptions/day.ts). */
+  /** Fixed number of warm-up days that are run but not recorded (default: until the tank is periodic, 2-14 days; see assumptions/day.ts). */
   warmUpDays?: number;
   /** Start tank state (skips the default initial tank). */
   initialTank?: TankState;
@@ -587,9 +691,30 @@ function planFor(scenario: DayScenarioId): ScenarioPlan {
   return { hours: 24, climate: (t) => climateAt(scenario, t), warm: (t) => climateAt(scenario, t) };
 }
 
-/** Warm-up days before a recorded 24/72 h scenario, and before each typical day of the annual sum. */
-const WARM_UP_DAYS = 2;
-const WARM_UP_DAYS_YEAR = 3;
+/** Warm-up runs until the daily tank energy change is below tolerance: at least 2 and at most 14 days. */
+const WARM_UP_MIN_DAYS = 2;
+const WARM_UP_MAX_DAYS = 14;
+
+/**
+ * Repeat the warm-up weather until the tank is (nearly) periodic: |change of stored heat over one day| below
+ * 0,2 % of the daily DHW demand (floor 0,05 kWh), or the day limit. A big tank with little demand converges slowly.
+ */
+function warmUpToPeriodic(
+  sys: SystemInputs,
+  strategy: RouterStrategy,
+  climate: (t: number) => ClimatePoint,
+  dtH: number,
+  start: Carry,
+): Carry {
+  let carry = start;
+  for (let d = 1; d <= WARM_UP_MAX_DAYS; d++) {
+    const r = runPhase(sys, strategy, climate, 24, dtH, carry, false);
+    carry = r.carry;
+    const tol = Math.max(0.05, 0.002 * (r.acc.demandWh / 1000));
+    if (d >= WARM_UP_MIN_DAYS && Math.abs(r.tank1KWh - r.tank0KWh) < tol) break;
+  }
+  return carry;
+}
 
 const startCarry = (sys: SystemInputs): Carry => ({
   tank: initialTank(sys.tank, sys.hotel.mainsC),
@@ -609,8 +734,8 @@ export function simulateSystem(
   const plan = planFor(scenario);
   let carry = startCarry(sys);
   if (opts.initialTank) carry = { ...carry, tank: opts.initialTank };
-  const warm = Math.max(0, Math.floor(opts.warmUpDays ?? WARM_UP_DAYS));
-  if (warm > 0) carry = runPhase(sys, strategy, plan.warm, 24 * warm, dtH, carry, false).carry;
+  if (opts.warmUpDays === undefined) carry = warmUpToPeriodic(sys, strategy, plan.warm, dtH, carry);
+  else if (opts.warmUpDays > 0) carry = runPhase(sys, strategy, plan.warm, 24 * Math.floor(opts.warmUpDays), dtH, carry, false).carry;
   const r = runPhase(sys, strategy, plan.climate, plan.hours, dtH, carry, true);
   const delta = r.tank1KWh - r.tank0KWh;
   const closure = delta - (r.acc.acceptedWh - r.acc.deliveredWh - r.acc.lossWh) / 1000;
@@ -630,7 +755,7 @@ export function simulateYear(sys: SystemInputs, strategy?: RouterStrategy, dtH: 
   let totals: DayTotals | undefined;
   for (const w of ANNUAL_DAY_WEIGHTS) {
     const plan = planFor(w.scenario);
-    const warmed = runPhase(sys, strat, plan.warm, 24 * WARM_UP_DAYS_YEAR, dtH, startCarry(sys), false).carry;
+    const warmed = warmUpToPeriodic(sys, strat, plan.warm, dtH, startCarry(sys));
     const r = runPhase(sys, strat, plan.climate, plan.hours, dtH, warmed, false);
     const day = scaleTotals(totalsOf(r.acc, r.tank1KWh - r.tank0KWh, sys.heatPumpSource.enabled), w.days);
     totals = totals ? addTotals(totals, day) : day;
@@ -642,7 +767,7 @@ export function simulateYear(sys: SystemInputs, strategy?: RouterStrategy, dtH: 
   };
 }
 
-/** Annual electricity [kWh_e] of the same array run as plain PV (own cell temperature, no heat extraction). */
+/** Annual electricity [kWh_e] of the same array run as plain PV (own cell temperature, no heat extraction), after the system derate. */
 function conventionalPvKWhE(sys: SystemInputs, dtH: number): number {
   let kWh = 0;
   for (const w of ANNUAL_DAY_WEIGHTS) {
@@ -663,7 +788,7 @@ function conventionalPvKWhE(sys: SystemInputs, dtH: number): number {
         },
         'conventional-pv',
       );
-      wh += r.electricalW * sys.array.modules * dtH;
+      wh += r.electricalW * sys.array.modules * sys.array.systemDerate * dtH;
     }
     kWh += (wh / 1000) * w.days;
   }

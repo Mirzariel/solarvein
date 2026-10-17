@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DayResult, DayScenarioId, RouterStrategy, Sink, SystemInputs } from '../contract';
 import { DEFAULT_SYSTEM } from '../hotel';
-import { areaSweep, baselineInputs, simulateSystem, simulateYear } from '../day';
+import { areaSweep, baselineInputs, simulateSystem, simulateYear, type DayStepDetail } from '../day';
 import { ANNUAL_DAY_WEIGHTS, DAY_ASSUMPTIONS } from '../assumptions/day';
 import { compareBaselines } from '../carbon';
 import { carnotCopHeating, COND_APPROACH_K, EVAP_APPROACH_K } from '../heatpump';
@@ -171,6 +171,33 @@ describe('differential thermostat (2 L/min per module)', () => {
   });
 });
 
+describe('DHW chain second law', () => {
+  for (const sc of SCENARIOS) {
+    for (const st of STRATEGIES) {
+      it(`potable outlet never exceeds the hottest source or the setpoint (${sc}, ${st})`, () => {
+        const r = run(SYS, sc, st);
+        for (const s of r.steps as DayStepDetail[]) {
+          const solar = s.dhw.fromCollectorW + s.dhw.fromTankW;
+          if (solar <= 0) continue;
+          expect(s.dhw.potableOutC).toBeLessThanOrEqual(Math.max(s.dhw.tankSourceC, s.dhw.collectorSourceC) + 1e-9);
+          expect(s.dhw.potableOutC).toBeLessThanOrEqual(SYS.hotel.dhwSetpointC + 1e-9);
+          expect(s.dhw.potableOutC).toBeGreaterThanOrEqual(SYS.hotel.mainsC - 1e-9);
+        }
+      });
+    }
+  }
+
+  it('also holds from a hot start tank', () => {
+    const hot = { topC: 58, bottomC: 52, soc: 1, lossW: 0 };
+    const r = simulateSystem(SYS, 'berawan', { initialTank: hot, warmUpDays: 0 });
+    for (const s of r.steps as DayStepDetail[]) {
+      if (s.dhw.fromCollectorW + s.dhw.fromTankW > 0) {
+        expect(s.dhw.potableOutC).toBeLessThanOrEqual(Math.max(s.dhw.tankSourceC, s.dhw.collectorSourceC) + 1e-9);
+      }
+    }
+  });
+});
+
 describe('simulateSystem: scenarios', () => {
   it('rainy days are not zero-sun but yield much less solar heat than clear days', () => {
     const terik = run(SYS, 'terik');
@@ -254,6 +281,139 @@ describe('desiccant path (W3 wired)', () => {
       expect(r.totals.moistureRemovedKg).toBe(0);
       expect(r.totals.hvacSavedKWhE).toBe(0);
     }
+  });
+});
+
+/** Little hot-water demand and a big array: the tank cannot absorb the heat (surplus). */
+const SURPLUS: SystemInputs = { ...SYS, hotel: { ...SYS.hotel, occupancy: 0.05 } };
+/** Optimistic desiccant assumptions (exhaust regeneration air, after-cooler COP 6 vs coil 3): the value gate can pass. */
+const SURPLUS_OPT: SystemInputs = {
+  ...SURPLUS,
+  desiccant: { ...SURPLUS.desiccant, regenAir: 'exhaust' },
+  carbon: { ...SURPLUS.carbon, aftercoolerCop: 6, coilRefCop: 3 },
+};
+
+describe('surplus: router acceptance, bypass and the value-gated desiccant', () => {
+  it('a tank that cannot accept heat bypasses it (dry-cooler return) instead of silently stopping', () => {
+    const y = simulateYear(SURPLUS, 'dhw-priority');
+    expect(y.totals.bypassKWhTh).toBeGreaterThan(1000);
+    const d = run(SURPLUS, 'terik', 'dhw-priority');
+    expect(d.steps.some((s) => s.router.allocW.bypass > 0)).toBe(true);
+    for (const s of d.steps) {
+      if (s.router.pumpOn) expect(s.collector.inletC).toBeLessThanOrEqual(s.tank.bottomC + 1e-6);
+      expect(SINKS.reduce((a, k) => a + s.router.allocW[k], 0)).toBeCloseTo(s.collector.qLiquidW, 6);
+    }
+    expect(d.totals.unmetKWhTh).toBe(0);
+  });
+
+  it('dhw-priority never sends heat to the desiccant, also in surplus', () => {
+    expect(simulateYear(SURPLUS, 'dhw-priority').totals.desiccantRegenKWhTh).toBe(0);
+  });
+
+  it('with default desiccant assumptions the value gate keeps adaptive off the desiccant', () => {
+    const a = simulateYear(SURPLUS, 'adaptive');
+    const p = simulateYear(SURPLUS, 'dhw-priority');
+    expect(a.totals.desiccantRegenKWhTh).toBe(0);
+    expect(a.totals.dhwSolarKWhTh).toBeCloseTo(p.totals.dhwSolarKWhTh, 6);
+  });
+
+  it('under optimistic desiccant assumptions adaptive uses surplus heat and the net HVAC result is reported', () => {
+    const a = simulateYear(SURPLUS_OPT, 'adaptive');
+    const p = simulateYear(SURPLUS_OPT, 'dhw-priority');
+    const f = simulateYear(SURPLUS_OPT, 'fixed-schedule');
+    expect(a.totals.desiccantRegenKWhTh).toBeGreaterThan(0);
+    expect(a.totals.moistureRemovedKg).toBeGreaterThan(0);
+    // hot water is served first: adaptive does not lose DHW heat against dhw-priority
+    expect(a.totals.dhwSolarKWhTh).toBeGreaterThanOrEqual(p.totals.dhwSolarKWhTh * 0.99);
+    // the naive schedule gives up DHW heat
+    expect(f.totals.dhwSolarKWhTh).toBeLessThan(p.totals.dhwSolarKWhTh);
+    expect(Number.isFinite(a.totals.hvacSavedKWhE)).toBe(true);
+    expect(a.totals.unmetKWhTh).toBe(0);
+  });
+
+  it('adaptive desiccant heat only flows when the real outlet is near the minimum regeneration temperature', () => {
+    const r = run(SURPLUS_OPT, 'terik', 'adaptive');
+    for (const s of r.steps) {
+      if (s.router.allocW.desiccant > 0) {
+        expect(s.collector.outletC).toBeGreaterThanOrEqual(SURPLUS_OPT.controller.desiccantMinRegenC - 2 - 1e-9);
+      }
+    }
+  });
+});
+
+describe('PV derate and specific yield', () => {
+  it('plain-PV specific yield lands in 1350-1650 kWh/kWp (kWp = area x 0,2)', () => {
+    const b = baselineInputs(SYS);
+    const y = b.conventionalPvKWhEPerYear / (b.areaM2 * 0.2);
+    expect(y).toBeGreaterThan(1350);
+    expect(y).toBeLessThan(1650);
+  });
+
+  it('the derate scales PV/T electricity and plain PV alike, thermal results unchanged', () => {
+    const one: SystemInputs = { ...SYS, array: { ...SYS.array, systemDerate: 1 } };
+    const a = simulateYear(SYS, 'dhw-priority');
+    const b = simulateYear(one, 'dhw-priority');
+    expect(a.totals.pvKWhE / b.totals.pvKWhE).toBeCloseTo(SYS.array.systemDerate, 6);
+    const ratio = baselineInputs(SYS).conventionalPvKWhEPerYear / baselineInputs(one).conventionalPvKWhEPerYear;
+    expect(ratio).toBeCloseTo(SYS.array.systemDerate, 6);
+    expect(a.totals.dhwSolarKWhTh).toBeCloseTo(b.totals.dhwSolarKWhTh, 6);
+  });
+
+  it('PV/T and plain-PV electricity are of the same order', () => {
+    const b = baselineInputs(SYS);
+    const ratio = b.solarvein.totals.pvKWhE / b.conventionalPvKWhEPerYear;
+    expect(ratio).toBeGreaterThan(0.9);
+    expect(ratio).toBeLessThan(1.1);
+  });
+});
+
+describe('tank state of charge and pump switching', () => {
+  it('SoC is normalised between mains and the DHW setpoint', () => {
+    const r = run(SYS, 'terik');
+    for (const s of r.steps) {
+      const span = SYS.hotel.dhwSetpointC - SYS.hotel.mainsC;
+      const exp = Math.min(Math.max(((s.tank.topC + s.tank.bottomC) / 2 - SYS.hotel.mainsC) / span, 0), 1);
+      expect(s.tank.soc).toBeCloseTo(exp, 9);
+    }
+    expect(Math.max(...r.steps.map((s) => s.tank.soc))).toBeGreaterThan(0.3);
+  });
+
+  for (const sc of SCENARIOS) {
+    it(`pump switching invariants (${sc})`, () => {
+      const r = run(SYS, sc);
+      const days = sc === 'hujan-3-hari' ? 3 : 1;
+      let starts = 0;
+      let prev = false;
+      let runH = 0;
+      for (const s of r.steps) {
+        if (s.router.pumpOn) {
+          runH += r.dtH;
+          if (!prev) starts++;
+        }
+        prev = s.router.pumpOn;
+      }
+      expect(starts).toBeLessThanOrEqual(6 * days);
+      expect(runH).toBeLessThanOrEqual(12 * days + 1e-9);
+      if (sc === 'terik') expect(starts).toBeGreaterThan(0);
+    });
+  }
+});
+
+describe('72 h ledger sanity', () => {
+  it('net CO2e of 3 rainy days is at least minus (standby + parasitic + 3 days of embodied)', () => {
+    const r = run(SYS, 'hujan-3-hari');
+    const c = SYS.carbon;
+    const areaM2 = SYS.array.modules * SYS.array.module.areaM2;
+    const life = 20;
+    const embodied3d = ((c.embodiedPvtKgPerM2 * areaM2 + c.embodiedBosKg) / life) * (3 / 365);
+    const parasitic = r.totals.parasiticKWhE * c.gridKgPerKWhE;
+    const avoided =
+      r.totals.pvKWhE * c.gridKgPerKWhE + (r.totals.dhwSolarKWhTh / SYS.hotel.heaterEfficiency) * c.lpgKgPerKWhFuel;
+    const standby = 0; // tank standby is already inside the solar-DHW and backup energies (not counted twice)
+    const net = avoided - parasitic - embodied3d;
+    expect(avoided).toBeGreaterThanOrEqual(0);
+    expect(net).toBeGreaterThanOrEqual(-(standby + parasitic + embodied3d) - 1e-9);
+    expect(r.totals.unmetKWhTh).toBe(0);
   });
 });
 
