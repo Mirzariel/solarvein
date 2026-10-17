@@ -18,6 +18,7 @@
  * Framework-free (no React, no DOM except optional matchMedia), safe in vitest/node.
  */
 import gsap from 'gsap';
+import type { ClimatePoint, RouterSnapshot } from '../sim/system';
 import './gsapConfig';
 import { INPUT_LIMITS, simulate, type NumericInputKey, type SimInputs, type SimResult } from '../sim';
 import { clamp, clamp01, lerp, smootherstep, springStep, type SpringState } from './spring';
@@ -34,6 +35,15 @@ export interface VisualFrame {
   moving: boolean;
   /** Increments on every change; consumers redraw when it differs from what they last drew. */
   epoch: number;
+  /**
+   * v2: router state at the current scenario time (valves/alloc interpolated toward the target with actuator
+   * dynamics; read from the cached DayResult, never integrated per frame). Absent on v1 frames.
+   */
+  router?: RouterSnapshot;
+  /** v2: climate at the current scenario time (sky, humidity). */
+  climate?: ClimatePoint;
+  /** v2: scenario hour of this frame. */
+  hour?: number;
 }
 
 export type FrameListener = (f: VisualFrame) => void;
