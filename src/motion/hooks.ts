@@ -15,11 +15,18 @@ export function useVisualFrameRef(): VisualFrame {
   return weather.frame();
 }
 
-/** Selected slice of the visual frame as React state, refreshed at most `hz` times per second and only on change. */
+/**
+ * Selected slice of the visual frame as React state, refreshed at most `hz` times per second and only on change.
+ * `enabled = false` (e.g. the view is off-screen) unsubscribes: no renders at all while disabled; the value is
+ * refreshed once when it is enabled again. Pass it whenever the consumer can be off-screen.
+ * Rule for consumers: never setState unconditionally in an effect keyed on store-derived values that change per
+ * tick (React dev warns "Maximum update depth exceeded" after 50 consecutive effect-scheduled updates).
+ */
 export function useVisualSelect<T>(
   select: (f: VisualFrame) => T,
   hz: number = READOUT_HZ,
   equals: (a: T, b: T) => boolean = Object.is,
+  enabled = true,
 ): T {
   const [value, setValue] = useState<T>(() => select(weather.frame()));
   const sel = useRef(select);
@@ -31,9 +38,10 @@ export function useVisualSelect<T>(
       const next = sel.current(f);
       setValue((prev) => (eq.current(prev, next) ? prev : next));
     };
+    if (!enabled) return;
     apply(weather.frame());
     return weather.subscribe(apply, hz);
-  }, [hz]);
+  }, [hz, enabled]);
   return value;
 }
 

@@ -65,3 +65,12 @@ Dev only: `window.__sv` = `{ engine, store, frame(), setModeTarget('A'|'B'|'C'),
 - Hour scrubbing across router hysteresis (terik 13 - 16 h: on / off / on / off) flips the pump visibly; that is the computed day.
 - Modes B and C both have the pump off (valves closed); they differ in reason, G and tank state, not in valve position.
 - A pump start waits ~0,5 s into a transition while the sky is already open (the router decision is the visible event).
+
+## React rule: "Maximum update depth exceeded" (Gate 3)
+React dev counts consecutive commits whose passive effects schedule an update; 50 in a row (a ~0,8 s scroll scrub where the
+store changes every frame) logs the warning, and the stack ends in whatever setState runs next (here `useVisualSelect`).
+Root cause found at <= 768 px: `useGlide` in `src/sections/router/useRouterView.ts` called `setShown({...})` unconditionally
+in an effect keyed on `target` when `animate` was false (router off-screen), although the hook then returns `target` and
+never reads `shown`. Fix = `docs/audit/wave2/w5/useRouterView-depth.patch` (0 errors in 10 runs at 390 px and 4 at 768 px, was ~6/8).
+Rules: never setState unconditionally in an effect keyed on store-derived values; pass `enabled` to `useVisualSelect` when the
+consumer can be off-screen. Repro: `node docs/audit/wave2/w5/depth.mjs <port> <runs> <width>`.

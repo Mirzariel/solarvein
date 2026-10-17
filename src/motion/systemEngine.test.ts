@@ -304,3 +304,36 @@ describe('binding classification', () => {
     expect(classifyChange({ ...base, modeTarget: 'custom' }, { ...base, modeTarget: 'custom', sys: structuredClone(DEFAULT_SYSTEM) })).toBe('follow');
   });
 });
+
+describe('subscriber rate (regression: Maximum update depth at <= 768 px)', () => {
+  it('a throttled subscriber gets at most hz frames per second while moving, plus exactly one flush when motion ends', () => {
+    let t = 0;
+    const e = createSystemEngine(mode('A'), { reducedMotion: () => false, hidden: () => false, autoTick: false, now: () => t });
+    const seen: boolean[] = [];
+    e.subscribe((f) => seen.push(f.moving), 30);
+    e.setTarget(mode('C'), { kind: 'scripted' });
+    for (let i = 0; i < 240; i++) {
+      t += DT * 1000;
+      e.tick(DT);
+    }
+    const movingFrames = seen.filter((m) => m).length;
+    expect(movingFrames).toBeLessThanOrEqual(Math.ceil(1.45 * 30) + 1);
+    expect(seen.filter((m) => !m).length).toBe(1);
+    expect(seen[seen.length - 1]).toBe(false);
+  });
+  it('an idle engine publishes nothing (no frames, no epoch change) however often it is ticked', () => {
+    const e = mkEngine(mode('A'));
+    const epoch = e.frame().epoch;
+    let n = 0;
+    e.subscribe(() => n++, 0);
+    for (let i = 0; i < 100; i++) e.tick(DT);
+    expect(n).toBe(0);
+    expect(e.frame().epoch).toBe(epoch);
+  });
+  it('re-sending an identical target while idle does not start motion', () => {
+    const e = mkEngine(mode('A'));
+    e.setTarget(mode('A'), { kind: 'follow' });
+    expect(e.frame().moving).toBe(false);
+    expect(e.scripted()).toBe(false);
+  });
+});

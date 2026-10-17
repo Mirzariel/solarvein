@@ -1,0 +1,40 @@
+diff --git a/src/sections/router/useRouterView.ts b/src/sections/router/useRouterView.ts
+index 1ff5e13..f12e415 100644
+--- a/src/sections/router/useRouterView.ts
++++ b/src/sections/router/useRouterView.ts
+@@ -124,6 +124,7 @@ function useGlide(target: RouterView, animate: boolean): RouterView {
+     queue: Pending[];
+     raf: number;
+     lastT: number;
++    frozen: boolean;
+   } | null>(null);
+ 
+   // Keep the static fields (system settings) current without gliding them.
+@@ -134,7 +135,7 @@ function useGlide(target: RouterView, animate: boolean): RouterView {
+     const d: Discrete = { mode: target.mode, pumpOn: target.pumpOn, reason: target.reason };
+     let s = sim.current;
+     if (!s) {
+-      s = { x: arr.map((v) => ({ x: v, v: 0 })), goalEarly: arr, goalLate: arr, dLate: d, queue: [], raf: 0, lastT: 0 };
++      s = { x: arr.map((v) => ({ x: v, v: 0 })), goalEarly: arr, goalLate: arr, dLate: d, queue: [], raf: 0, lastT: 0, frozen: false };
+       sim.current = s;
+     }
+     if (!animate) {
+@@ -145,6 +146,18 @@ function useGlide(target: RouterView, animate: boolean): RouterView {
+       s.goalEarly = arr;
+       s.goalLate = arr;
+       s.dLate = d;
++      // Off-screen: the hook returns `target` itself, so `shown` is not read. No setState here (an unguarded
++      // setState in an effect keyed on `target` re-renders on every store tick: React's "Maximum update depth" warning).
++      s.frozen = true;
++      return;
++    }
++    if (s.frozen) {
++      // back on screen: resync once from the current target, then glide
++      s.frozen = false;
++      s.x = arr.map((v) => ({ x: v, v: 0 }));
++      s.goalEarly = arr;
++      s.goalLate = arr;
++      s.dLate = d;
+       setShown({ ...target, n: fromArr(arr) });
+       return;
+     }
