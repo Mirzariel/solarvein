@@ -58,6 +58,8 @@ export const REGEN_HX_APPROACH_K = 3;
 export const REGEN_LOOP_DROP_K = 10;
 /** Usable water capacity of a regenerated bed [kg water per kg desiccant] (≈ effective swing 0,07–0,13, W3 sweep). */
 export const BED_USABLE_CAPACITY_KG_PER_KG = 0.1;
+/** Minimum pump run time after a start, against short cycling [h] (asumsi). */
+export const PUMP_MIN_RUN_H = 0.5;
 /** Bed state at the start of a scenario [0..1]. */
 const INITIAL_BED_CAPACITY = 0.5;
 
@@ -86,7 +88,7 @@ export interface DesiccantStepOut {
    *  after-cooler + fans + PV penalty) [W_e]. Equal when the bed does nothing. */
   refWe: number;
   withDesiccantWe: number;
-  /** Fans + regeneration pump [W_e] that are part of withDesiccantWe (also reported as parasitic). */
+  /** Fans + pump [W_e] inside withDesiccantWe (information only; NOT added to parasitic electricity). */
   parasiticWe: number;
 }
 
@@ -290,6 +292,8 @@ interface Carry {
   router: RouterState | undefined;
   capacity: number;
   bedRegenC: number;
+  /** Hours the pump has been running continuously (0 when off). */
+  pumpRunH: number;
 }
 
 interface PhaseResult {
@@ -327,6 +331,7 @@ function runPhase(
   let prev = carry.router;
   let capacity = carry.capacity;
   let bedRegenC = carry.bedRegenC;
+  let pumpRunH = carry.pumpRunH;
   const tank0KWh = tankEnergyKWhTh(tank, tankP, hotel.mainsC);
 
   for (let i = 0; i < nSteps; i++) {
@@ -352,13 +357,25 @@ function runPhase(
     const simOn = G > 0 ? simulate(modIn(inletC, 'on'), 'pvt-liquid') : null;
     const qAvailableW = simOn ? Math.max(0, simOn.qLiquidW) * modules : 0;
     const outletC = simOn ? simOn.outletC : inletC;
+    // Differential thermostat: START is judged on the collector SENSOR with the pump off (stagnant cell
+    // temperature), STOP on the running outlet. The router applies onK while off and offK while running.
+    let simOff = null as ReturnType<typeof simulate> | null;
+    let sensorC = outletC;
+    if (G > 0 && prev?.pumpOn !== true) {
+      simOff = simulate(modIn(inletC, 'off'), 'pvt-liquid');
+      sensorC = simOff.cellC;
+    } else if (prev?.pumpOn === true && pumpRunH < PUMP_MIN_RUN_H) {
+      // Anti-short-cycling: the pump may not stop on the thermostat for PUMP_MIN_RUN_H after a start.
+      // (A collector that no longer delivers heat, q ≤ 0, still stops: the router requires q > 0.)
+      sensorC = Math.max(outletC, tank.bottomC + params.offK + 1e-6);
+    }
     const directCapW = preheatW(draw.drawLph, outletC, hotel.mainsC, hotel.dhwSetpointC);
 
     // 2. router
     const desiccantWanted = sys.desiccant.enabled && capacity < 0.999 && airNeedsDrying(sys, clim);
     const router = allocate({
       qAvailableW,
-      collectorOutletC: outletC,
+      collectorOutletC: sensorC,
       tankTopC: tank.topC,
       tankBottomC: tank.bottomC,
       tankMaxC: tankP.maxC,
@@ -387,7 +404,7 @@ function runPhase(
       col.electricalW = simOn.electricalW * modules;
       col.pumpW = simOn.pumpW * modules;
     } else if (G > 0) {
-      const simOff = simulate(modIn(inletC, 'off'), 'pvt-liquid');
+      simOff = simOff ?? simulate(modIn(inletC, 'off'), 'pvt-liquid');
       col.cellC = simOff.cellC;
       col.electricalW = simOff.electricalW * modules;
     }
@@ -486,7 +503,7 @@ function runPhase(
     // accumulate [Wh]
     const k = dtH;
     acc.pvWh += col.electricalW * k;
-    acc.parasiticWh += (col.pumpW + dz.parasiticWe) * k;
+    acc.parasiticWh += col.pumpW * k; // circulation pump(s) only; desiccant fans live inside hvacSaved
     if (router.pumpOn) acc.collectedWh += qAvailableW * k;
     acc.demandWh += draw.demandW * k;
     acc.solarWh += solarW * k;
@@ -497,8 +514,7 @@ function runPhase(
     acc.acceptedWh += acceptedW * k;
     acc.deliveredWh += fromTankW * k;
     acc.moistureKg += dz.moistureRemovedKgH * k;
-    // fans/pump are counted once, as parasitic electricity, so they are added back here
-    acc.hvacSavedWh += (dz.refWe - dz.withDesiccantWe + dz.parasiticWe) * k;
+    acc.hvacSavedWh += (dz.refWe - dz.withDesiccantWe) * k; // net incl. fans, after-cooler, PV penalty
     if (heatPump) acc.hpWorkWh += heatPump.workWe * k;
 
     if (record) {
@@ -528,13 +544,14 @@ function runPhase(
       if (heatPump) step.heatPump = heatPump;
       steps.push(step);
     }
+    pumpRunH = router.pumpOn ? (prev?.pumpOn ? pumpRunH + dtH : dtH) : 0;
     prev = router;
   }
 
   return {
     steps,
     acc,
-    carry: { tank, router: prev, capacity, bedRegenC },
+    carry: { tank, router: prev, capacity, bedRegenC, pumpRunH },
     tank0KWh,
     tank1KWh: tankEnergyKWhTh(tank, tankP, hotel.mainsC),
   };
@@ -579,6 +596,7 @@ const startCarry = (sys: SystemInputs): Carry => ({
   router: undefined,
   capacity: INITIAL_BED_CAPACITY,
   bedRegenC: sys.controller.desiccantMinRegenC,
+  pumpRunH: 0,
 });
 
 export function simulateSystem(

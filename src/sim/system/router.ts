@@ -48,7 +48,15 @@ function inScheduleWindow(hourOfDay: number): boolean {
   return h >= SCHEDULE_START_H && h < SCHEDULE_END_H;
 }
 
-/** Decide the pump and the heat split for this instant. */
+/**
+ * Decide the pump and the heat split for this instant.
+ *
+ * `input.collectorOutletC` is the collector SENSOR temperature of a differential thermostat: while the pump is
+ * off (prev.pumpOn false) pass the stagnant collector temperature (it decides the START, threshold onK); while
+ * the pump runs pass the running outlet temperature (it decides the STOP, threshold offK). It is compared with
+ * tankBottomC. The caller (day.ts) is responsible for this choice. The same value is used for the
+ * desiccant-minimum test, so on a start step the caller must check the real outlet before crediting regeneration.
+ */
 export function allocate(input: RouterInput): RouterState {
   const { params, prev } = input;
   const q = Number.isFinite(input.qAvailableW) ? Math.max(0, input.qAvailableW) : 0;

@@ -7,16 +7,7 @@ import { compareBaselines } from '../carbon';
 import { carnotCopHeating, COND_APPROACH_K, EVAP_APPROACH_K } from '../heatpump';
 import { evaluateDesiccant } from '../desiccant';
 
-/**
- * DEFAULT_SYSTEM uses 2 L/min per module: the collector fluid then warms only ~5 K at full sun, below the
- * controller onK (6 K), so the pump almost never starts (contract change request in the W2b report).
- * Tests that look at harvesting therefore use a matched flow of 0,5 L/min per module.
- */
-const withFlow = (sys: SystemInputs, flowLpm: number): SystemInputs => ({
-  ...sys,
-  array: { ...sys.array, module: { ...sys.array.module, flowLpm } },
-});
-const SYS = withFlow(DEFAULT_SYSTEM, 0.5);
+const SYS = DEFAULT_SYSTEM; // 2 L/min per module; differential thermostat starts the pump from the pump-off sensor
 const SCENARIOS: DayScenarioId[] = ['terik', 'berawan', 'hujan', 'hujan-3-hari'];
 const STRATEGIES: RouterStrategy[] = ['dhw-priority', 'fixed-schedule', 'adaptive'];
 const SINKS: Sink[] = ['dhw', 'tank', 'desiccant', 'bypass'];
@@ -25,7 +16,7 @@ const run = (sys: SystemInputs, sc: DayScenarioId, strategy: RouterStrategy = 'a
   simulateSystem(sys, sc, { strategy });
 
 describe('simulateSystem: service guarantee and balances', () => {
-  for (const sys of [DEFAULT_SYSTEM, SYS]) {
+  for (const sys of [SYS]) {
     for (const sc of SCENARIOS) {
       for (const st of STRATEGIES) {
         it(`unmet = 0 and solar + backup = demand per step (${sc}, ${st}, flow ${sys.array.module.flowLpm})`, () => {
@@ -139,6 +130,44 @@ describe('simulateSystem: safe controller and modes', () => {
     const day = r.steps.filter((s) => s.climate.irradiance > 50);
     expect(day.length).toBeGreaterThan(5);
     for (const s of day) expect(s.collector.electricalW).toBeGreaterThan(0);
+  });
+});
+
+describe('differential thermostat (2 L/min per module)', () => {
+  it('a clear day collects substantial heat with the default 2 L/min flow', () => {
+    expect(SYS.array.module.flowLpm).toBe(2);
+    const r = run(SYS, 'terik');
+    expect(r.totals.collectedKWhTh).toBeGreaterThan(80);
+    expect(r.totals.solarFraction).toBeGreaterThan(0.3);
+    expect(r.steps.some((s) => s.router.pumpOn)).toBe(true);
+  });
+
+  it('a cold collector never starts the pump (hot tank, diffuse light): no tank cooling', () => {
+    const hot = { topC: 75, bottomC: 75, soc: 1, lossW: 0 };
+    const r = simulateSystem(SYS, 'hujan', { initialTank: hot, warmUpDays: 0 });
+    for (const s of r.steps) {
+      expect(s.router.pumpOn).toBe(false);
+      expect(s.collector.qLiquidW).toBe(0);
+    }
+    expect(r.totals.collectedKWhTh).toBe(0);
+  });
+
+  it('no rapid pump cycling on a cloudy day (at most 6 starts)', () => {
+    const r = run(SYS, 'berawan');
+    let starts = 0;
+    let prev = false;
+    for (const s of r.steps) {
+      if (s.router.pumpOn && !prev) starts++;
+      prev = s.router.pumpOn;
+    }
+    expect(starts).toBeLessThanOrEqual(6);
+    expect(starts).toBeGreaterThan(0);
+  });
+
+  it('desiccant fans are not in the parasitic total (pumps only)', () => {
+    const r = run(SYS, 'terik', 'fixed-schedule');
+    const pumpKWh = r.steps.reduce((a, s) => a + s.collector.pumpW * r.dtH, 0) / 1000;
+    expect(r.totals.parasiticKWhE).toBeCloseTo(pumpKWh, 9);
   });
 });
 

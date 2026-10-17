@@ -44,6 +44,13 @@ export const DAY_ASSUMPTIONS: AssumptionEntry[] = [
     tag: 'asumsi',
   },
   {
+    id: 'hari-termostat-diferensial',
+    title: 'Pompa mengikuti termostat diferensial',
+    body: 'Keputusan menyalakan pompa memakai sensor kolektor saat pompa mati (suhu kolektor yang diam, dari simulasi dengan pompa mati) dibandingkan dengan dasar tangki dan ambang ΔT hidup. Keputusan mematikan memakai suhu keluar kolektor saat pompa berjalan dan ambang ΔT mati. Aliran 2 L/menit per modul hanya menaikkan fluida beberapa kelvin, sehingga membandingkan suhu keluar saat pompa menyala saja tidak akan pernah memulai pompa. Agar pompa tidak hidup-mati terlalu sering di hari berawan, pompa tidak boleh berhenti karena termostat selama 30 menit pertama setelah menyala; kolektor yang tidak lagi memberi panas tetap menghentikan pompa.',
+    value: 'Mulai: sensor pompa mati − dasar tangki > ΔT hidup · Henti: suhu keluar − dasar tangki ≤ ΔT mati · waktu jalan minimum 30 menit',
+    tag: 'usulan',
+  },
+  {
     id: 'hari-air-panas-seri',
     title: 'Panas langsung dan panas tangki untuk satu pemakaian',
     body: 'Saat ada pemakaian, panas langsung dari kolektor diambil lebih dahulu (dibatasi efektivitas penukar panas), lalu kekurangannya diambil dari bagian atas tangki lewat penukar panas eksternal. Sisanya selalu ditutup pemanas yang sudah ada, sehingga kebutuhan tak terpenuhi bernilai nol dalam semua skenario.',
@@ -63,8 +70,8 @@ export const DAY_ASSUMPTIONS: AssumptionEntry[] = [
   },
   {
     id: 'hari-desikan-adaptor',
-    title: 'Jalur desikan masih adaptor netral',
-    body: 'Sampai modul desikan tersambung, jalur ini hanya menghitung panas yang dialirkan dan pengisian kapasitas kering. Penyerapan uap air, listrik kipas, dan penghematan AC bernilai nol, sehingga tidak ada manfaat desikan yang ditampilkan.',
+    title: 'Pembukuan jalur desikan',
+    body: 'Desikan dihitung dengan evaluateDesiccant pada suhu regenerasi sama dengan suhu keluar kolektor dikurangi 3 K. Kapasitas kering turun oleh uap air yang diserap dan naik oleh regenerasi sebatas panas yang dialirkan. Listrik kipas, after-cooler, dan penalti PV hanya masuk ke penghematan listrik AC bersih (bisa negatif, di luar angka utama) dan tidak ditambahkan ke listrik parasit; listrik parasit hanya pompa sirkulasi dan pengendali.',
     tag: 'hipotesis',
   },
   {
