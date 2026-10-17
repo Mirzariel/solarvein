@@ -341,6 +341,54 @@ describe('surplus: router acceptance, bypass and the value-gated desiccant', () 
   });
 });
 
+describe('bypass reason split and heat attribution', () => {
+  const bypassReasons = (sys: SystemInputs, sc: DayScenarioId) =>
+    run(sys, sc, 'dhw-priority').steps.filter(
+      (s) => s.router.pumpOn && s.router.allocW.bypass > s.router.allocW.dhw && s.router.allocW.bypass > s.router.allocW.tank,
+    );
+
+  it("'tangki-penuh-bypass' is used only when the tank is nearly full; otherwise 'fluida-belum-cukup-panas'", () => {
+    let cold = 0;
+    let full = 0;
+    for (const sys of [SYS, SURPLUS]) {
+      for (const sc of SCENARIOS) {
+        for (const s of bypassReasons(sys, sc)) {
+          if (s.router.reason === 'tangki-penuh-bypass') {
+            full++;
+            expect(s.tank.soc).toBeGreaterThanOrEqual(0.8); // end-of-step SoC; the test is on the start-of-step value 0,9
+          } else {
+            expect(s.router.reason).toBe('fluida-belum-cukup-panas');
+            cold++;
+            expect(s.tank.soc).toBeLessThan(0.95);
+          }
+        }
+      }
+    }
+    expect(cold).toBeGreaterThan(0);
+    expect(full).toBeGreaterThan(0);
+  });
+
+  for (const sys of [SYS, SURPLUS]) {
+    for (const sc of SCENARIOS) {
+      it(`collected heat = DHW solar + bypass + desiccant + tank loss + stored-heat change (${sc}, ${sys === SYS ? 'default' : 'surplus'})`, () => {
+        for (const st of STRATEGIES) {
+          const t = run(sys, sc, st).totals;
+          const sum =
+            t.dhwSolarKWhTh + t.bypassKWhTh + t.desiccantRegenKWhTh + t.tankLossKWhTh + t.tankDeltaKWhTh;
+          expect(Math.abs(t.collectedKWhTh - sum)).toBeLessThan(1e-6 * Math.max(1, t.collectedKWhTh));
+        }
+      });
+    }
+  }
+
+  it('annual: the unlabelled remainder is only the (small) stored-heat change of the periodic days', () => {
+    const t = simulateYear(SYS, 'adaptive').totals;
+    const sum = t.dhwSolarKWhTh + t.bypassKWhTh + t.desiccantRegenKWhTh + t.tankLossKWhTh;
+    expect(Math.abs(t.collectedKWhTh - sum - t.tankDeltaKWhTh)).toBeLessThan(1e-6 * t.collectedKWhTh);
+    expect(Math.abs(t.tankDeltaKWhTh)).toBeLessThan(0.01 * t.collectedKWhTh);
+  });
+});
+
 describe('PV derate and specific yield', () => {
   it('plain-PV specific yield lands in 1350-1650 kWh/kWp (kWp = area x 0,2)', () => {
     const b = baselineInputs(SYS);

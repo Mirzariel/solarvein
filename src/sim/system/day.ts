@@ -35,7 +35,7 @@ import type {
 import { kWhE, kWhTh } from './contract';
 import type { SimInputs } from '../types';
 import { simulate } from '../model';
-import { DESICCANT_HYSTERESIS_K, allocate, inScheduleWindow } from './router';
+import { DESICCANT_HYSTERESIS_K, TANK_FULL_MARGIN_K, allocate, inScheduleWindow } from './router';
 import { climateAt, dhwDrawAt } from './hotel';
 import { DEFAULT_PREHEAT_EFFECTIVENESS, drawCapacityWPerK } from './dhw';
 import { initialTank, stepTankDetailed, tankEnergyKWhTh, tankGeometry, tankHeadroomW, tankUaWPerK } from './tank';
@@ -91,7 +91,62 @@ export interface DesiccantStepOut {
 }
 
 /** evaluateDesiccant for the fresh air at the current outdoor state and a regeneration temperature. */
-function evalDesiccantAt(sys: SystemInputs, c: ClimatePoint, regenC: number) {
+/** Pump-off collector result that the stepper needs (does not depend on the inlet temperature). */
+interface Stagnant {
+  cellC: number;
+  electricalW: number;
+}
+const STAGNANT_CACHE = new WeakMap<object, Map<string, Stagnant>>();
+/** Memo per module object (treated as immutable) and exact weather point; the weather repeats every warm-up day. */
+function stagnant(mod: object, c: ClimatePoint, compute: () => Stagnant): Stagnant {
+  let m = STAGNANT_CACHE.get(mod);
+  if (!m) {
+    m = new Map();
+    STAGNANT_CACHE.set(mod, m);
+  }
+  const key = `${c.irradiance}|${c.ambientC}|${c.windMs}|${c.rainMmH}|${c.humidityRatio}`;
+  let v = m.get(key);
+  if (!v) {
+    const r = compute();
+    v = { cellC: r.cellC, electricalW: r.electricalW };
+    m.set(key, v);
+  }
+  return v;
+}
+
+type DesiccantEvalResult = ReturnType<typeof evaluateDesiccant>;
+/**
+ * Memo of evaluateDesiccant per (desiccant, hotel, carbon) objects (treated as immutable) and rounded inputs (regenC 1 K, T 0,25 K,
+ * w 2e-4 kg/kg; the evaluation is smooth in these, error well below the model uncertainty). The same weather
+ * repeats every warm-up day and every strategy, so most calls are hits. The evaluation is made AT the rounded
+ * values, so a hit and a miss give identical results.
+ */
+const DESICCANT_EVAL_CACHE = new WeakMap<object, WeakMap<object, WeakMap<object, Map<string, DesiccantEvalResult>>>>();
+/** The evaluation depends only on sys.desiccant, sys.hotel and sys.carbon, so the memo is keyed by those three objects. */
+function evalCache(sys: SystemInputs): Map<string, DesiccantEvalResult> {
+  let a = DESICCANT_EVAL_CACHE.get(sys.desiccant);
+  if (!a) DESICCANT_EVAL_CACHE.set(sys.desiccant, (a = new WeakMap()));
+  let b = a.get(sys.hotel);
+  if (!b) a.set(sys.hotel, (b = new WeakMap()));
+  let m = b.get(sys.carbon);
+  if (!m) b.set(sys.carbon, (m = new Map()));
+  return m;
+}
+function evalDesiccantAt(sys: SystemInputs, c: ClimatePoint, regenC: number): DesiccantEvalResult {
+  const m = evalCache(sys);
+  const rc = Math.round(regenC);
+  const tc = Math.round(c.ambientC * 4) / 4;
+  const w = Math.round(c.humidityRatio * 5000) / 5000;
+  const key = `${rc}|${tc}|${w}`;
+  let ev = m.get(key);
+  if (!ev) {
+    ev = evalDesiccantRaw(sys, { ...c, ambientC: tc, humidityRatio: w }, rc);
+    m.set(key, ev);
+  }
+  return ev;
+}
+
+function evalDesiccantRaw(sys: SystemInputs, c: ClimatePoint, regenC: number): DesiccantEvalResult {
   return evaluateDesiccant({
     regenC,
     process: { tC: c.ambientC, humidityRatio: c.humidityRatio },
@@ -311,6 +366,8 @@ function normalise(r: RouterState): void {
 
 /** Tank accepts collector heat only if the charge fluid exceeds the tank bottom by this margin [K] (asumsi). */
 export const TANK_ACCEPT_MARGIN_K = 1;
+/** The tank counts as full (for the bypass reason) at this state of charge on the mains-to-setpoint scale [0..1] (asumsi). */
+export const TANK_FULL_SOC = 0.9;
 /** Dry-cooler (bypass) return temperature above ambient [K] (asumsi). */
 export const DUMP_APPROACH_K = 8;
 /** Minimum pump run time after a start, against short cycling [h] (asumsi). */
@@ -397,7 +454,8 @@ function runPhase(
     // 1. collector candidates
     const bottom = tank.bottomC;
     const simNom: Sim | null = G > 0 ? run(bottom) : null; // pump forced on, loop returns at the tank bottom
-    const simOff: Sim | null = G > 0 ? simulate(modIn(bottom, 'off'), 'pvt-liquid') : null; // stagnant
+    // stagnant collector (pump off): independent of the inlet, so memoised per weather point and module
+    const simOff = G > 0 ? stagnant(mod, clim, () => simulate(modIn(bottom, 'off'), 'pvt-liquid')) : null;
     const outletNom = simNom ? simNom.outletC : bottom;
     const headW = simNom ? tankHeadroomW(tank, tankP, dtH, outletNom) : 0;
     const canAccept = !!simNom && outletNom - bottom > TANK_ACCEPT_MARGIN_K && headW > 0;
@@ -477,6 +535,10 @@ function runPhase(
       sensorC = Math.max(sensorC, inletC + params.offK + 1e-6);
     }
 
+    // Why the tank refuses heat (labels the bypass reason): near full on the useful scale, or fluid too cold to charge it
+    const tankRefusal: 'full' | 'cold' =
+      canAccept || usefulSoc(tank, Tm, Ts) >= TANK_FULL_SOC || tank.topC >= tankP.maxC - TANK_FULL_MARGIN_K ? 'full' : 'cold';
+
     const router = allocate({
       qAvailableW: qPass,
       collectorOutletC: sensorC,
@@ -492,6 +554,7 @@ function runPhase(
       tankAcceptW: route === 'tank' ? headW : 0,
       desiccantPreferred,
       regenSourceC: outletSel,
+      tankRefusal,
     });
     normalise(router);
 
@@ -691,9 +754,9 @@ function planFor(scenario: DayScenarioId): ScenarioPlan {
   return { hours: 24, climate: (t) => climateAt(scenario, t), warm: (t) => climateAt(scenario, t) };
 }
 
-/** Warm-up runs until the daily tank energy change is below tolerance: at least 2 and at most 14 days. */
-const WARM_UP_MIN_DAYS = 2;
-const WARM_UP_MAX_DAYS = 14;
+/** Warm-up: up to 3 coarse days (2x step length) with extrapolation, then up to 2 days at the real step length. */
+const WARM_UP_COARSE_DAYS = 3;
+const WARM_UP_FINE_DAYS = 2;
 
 /**
  * Repeat the warm-up weather until the tank is (nearly) periodic: |change of stored heat over one day| below
@@ -707,11 +770,40 @@ function warmUpToPeriodic(
   start: Carry,
 ): Carry {
   let carry = start;
-  for (let d = 1; d <= WARM_UP_MAX_DAYS; d++) {
+  const dtCoarse = Math.min(1, 2 * dtH); // coarse steps find the bulk of the periodic tank state cheaply
+  const kWhPerK = tankEnergyKWhTh({ topC: 1, bottomC: 1 }, sys.tank, 0); // both nodes shifted by 1 K
+  const shift = (dE: number, ratio: number) => {
+    const shiftK = Math.max(-40, Math.min(40, ((dE * ratio) / (1 - ratio)) / kWhPerK));
+    const cl = (x: number) => Math.min(Math.max(x, sys.hotel.mainsC), sys.tank.maxC);
+    const top = cl(carry.tank.topC + shiftK);
+    carry = { ...carry, tank: { ...carry.tank, topC: top, bottomC: Math.min(cl(carry.tank.bottomC + shiftK), top) } };
+  };
+  let prevDE: number | undefined;
+  let lastRatio = 0.5;
+  // Stage 1: coarse days with extrapolation of the remaining exponential relaxation
+  for (let d = 1; d <= WARM_UP_COARSE_DAYS; d++) {
+    const r = runPhase(sys, strategy, climate, 24, dtCoarse, carry, false);
+    carry = r.carry;
+    const dE = r.tank1KWh - r.tank0KWh;
+    if (Math.abs(dE) < Math.max(0.05, 0.002 * (r.acc.demandWh / 1000))) break;
+    if (prevDE !== undefined) {
+      const ratio = dE / prevDE;
+      if (ratio > 0.05 && ratio < 0.98) {
+        lastRatio = ratio;
+        shift(dE, ratio);
+        prevDE = undefined;
+        continue;
+      }
+    }
+    prevDE = dE;
+  }
+  // Stage 2: fine days at the real step length (the coarse state is only periodic for coarse steps)
+  for (let d = 1; d <= WARM_UP_FINE_DAYS; d++) {
     const r = runPhase(sys, strategy, climate, 24, dtH, carry, false);
     carry = r.carry;
-    const tol = Math.max(0.05, 0.002 * (r.acc.demandWh / 1000));
-    if (d >= WARM_UP_MIN_DAYS && Math.abs(r.tank1KWh - r.tank0KWh) < tol) break;
+    const dE = r.tank1KWh - r.tank0KWh;
+    if (Math.abs(dE) < Math.max(0.05, 0.002 * (r.acc.demandWh / 1000))) break;
+    if (d < WARM_UP_FINE_DAYS) shift(dE, lastRatio);
   }
   return carry;
 }
