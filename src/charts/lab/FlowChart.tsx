@@ -234,7 +234,14 @@ function Sankey({ flows, width }: { flows: DayFlows; width: number }) {
 
   const desc = `Aliran energi ${formatId(flows.hours, 0)} jam. Radiasi ${f1(flows.radiantKWh)} kWh menjadi listrik PV ${f1(flows.pvKWhE)} kWh listrik, panas ke cairan ${f1(flows.heatKWhTh)} kWh termal, dan sisanya rugi. Panas ke cairan: air panas langsung ${f1(flows.directKWhTh)}, tangki ${f1(flows.toTankKWhTh)}, desikan ${f1(flows.regenKWhTh)}, tidak dipakai ${f1(flows.bypassKWhTh)} kWh termal.`;
 
+  // tujuan tanpa aliran tidak diberi label di bagan (bertumpuk dengan label tetangga); disebut satu baris di bawahnya
+  const idle = model.nodes
+    .filter((n) => !n.hidden && n.value < 0.05)
+    .map((n) => labelOf(n.id))
+    .filter((l): l is NodeLabel => l !== null);
+
   return (
+    <>
     <svg viewBox={`0 0 ${width} ${height}`} width="100%" role="img" aria-label={desc} className="block h-auto w-full overflow-visible">
       <g>
         {model.links.map((l) => {
@@ -256,7 +263,7 @@ function Sankey({ flows, width }: { flows: DayFlows; width: number }) {
         {model.nodes.map((n) => {
           if (n.hidden) return n.h > 0 ? <rect key={n.id} x={n.x} y={n.y} width={9} height={n.h} fill={COLOR.heat} opacity={0.8} /> : null;
           const lb = labelOf(n.id);
-          if (!lb) return null;
+          if (!lb || n.value < 0.05) return null;
           const midY = n.y + Math.max(n.h, 0) / 2;
           const anchor = lb.side === 'l' ? 'end' : 'start';
           const x = lb.side === 'l' ? n.x - 8 : lb.side === 'r' ? n.x + 9 + 8 : n.x;
@@ -296,5 +303,18 @@ function Sankey({ flows, width }: { flows: DayFlows; width: number }) {
         })}
       </g>
     </svg>
+    {idle.length > 0 ? (
+      <p className="m-0 mt-2 text-small text-ink-2">
+        Tanpa aliran:{' '}
+        {idle.map((l, i) => (
+          <span key={l.name}>
+            {i > 0 ? ', ' : ''}
+            {l.name.toLowerCase()} <span className="num text-mono-label text-ink">0,0</span> kWh<sub className="text-[0.7em]">{l.form}</sub>
+          </span>
+        ))}
+        .
+      </p>
+    ) : null}
+    </>
   );
 }

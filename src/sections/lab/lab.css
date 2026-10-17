@@ -1,0 +1,15 @@
+/* Layar sentuh: bidang nilai angka (input teks pada Slider) dan sakelar mendapat area ketuk >= 44 px tanpa mengubah tata letak. */
+@media (pointer: coarse) {
+  .lab-rig input[type='text'] {
+    padding-block: 0.75rem;
+    margin-block: -0.75rem;
+  }
+  .lab-rig [role='switch'] {
+    position: relative;
+  }
+  .lab-rig [role='switch']::before {
+    content: '';
+    position: absolute;
+    inset: -0.75rem -0.5rem;
+  }
+}
