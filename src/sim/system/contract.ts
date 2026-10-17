@@ -253,6 +253,12 @@ export interface RouterInput {
   params: ControllerParams;
   /** Previous state for hysteresis. */
   prev?: RouterState;
+  /** Heat the tank can accept now [W_th] (headroom; 0 if the charge fluid is not warmer than the tank bottom). */
+  tankAcceptW?: number;
+  /** Value gate: desiccant saves more kWh_e per kWh_th than dumping the heat for cooler cells. */
+  desiccantPreferred?: boolean;
+  /** Real fluid temperature available for regeneration [°C] (collectorOutletC may be a cell-sensor value). */
+  regenSourceC?: number;
 }
 
 export interface RouterState {
@@ -303,6 +309,10 @@ export interface DayStep {
     backupW: number;
     /** Always 0 by design (service guarantee); tests assert it. */
     unmetW: number;
+    /** Potable temperature leaving the solar HX chain, before the existing heater [°C]. */
+    potableOutC?: number;
+    tankSourceC?: number;
+    collectorSourceC?: number;
   };
   desiccant: {
     /** Remaining dry capacity [0..1]. */
