@@ -59,7 +59,7 @@ function PresentationController({ onExit }: { onExit: () => void }) {
     (a: PresentationAction) => {
       switch (a.type) {
         case 'step': {
-          const next = stepCursor(cursorRef.current, a.delta, SCENES.length);
+          const next = stepCursor(cursorRef.current, a.delta);
           if (next === cursorRef.current) return;
           if (next < 0) goTop();
           else goScene(next);

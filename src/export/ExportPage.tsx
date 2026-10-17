@@ -32,8 +32,10 @@ if (flag(location.search, 'static')) forceReducedMotion();
 
 /** Every exportable figure, in page order. Ids are the file names the script writes. */
 export const EXPORTS: readonly { id: string; label: string; render: () => ReactNode }[] = [
-  { id: 'router-diagram', label: 'Router, 16:9', render: () => <RouterFigure id="router-diagram" ratio="16x9" /> },
-  { id: 'router-diagram-4x5', label: 'Router, 4:5', render: () => <RouterFigure id="router-diagram-4x5" ratio="4x5" /> },
+  { id: 'router-diagram', label: 'Router kondisi A, 16:9', render: () => <RouterFigure id="router-diagram" ratio="16x9" /> },
+  { id: 'router-diagram-b', label: 'Router kondisi B, 16:9', render: () => <RouterFigure id="router-diagram-b" ratio="16x9" target="B" /> },
+  { id: 'router-diagram-c', label: 'Router kondisi C, 16:9', render: () => <RouterFigure id="router-diagram-c" ratio="16x9" target="C" /> },
+  { id: 'router-diagram-4x5', label: 'Router A + B, 4:5', render: () => <RouterFigure id="router-diagram-4x5" ratio="4x5" /> },
   { id: 'kpi-baselines', label: 'CO₂e bersih vs B1–B4, 16:9', render: () => <KpiFigure id="kpi-baselines" ratio="16x9" /> },
   { id: 'kpi-baselines-4x5', label: 'CO₂e bersih vs B1–B4, 4:5', render: () => <KpiFigure id="kpi-baselines-4x5" ratio="4x5" /> },
   { id: 'day-chart', label: 'Hari terik, 16:9', render: () => <DayFigure id="day-chart" scenario="terik" ratio="16x9" /> },

@@ -1,6 +1,6 @@
 import { SIM_BADGE } from '../sim/system';
 import { EvidenceDot, formatId } from '../ui';
-import type { Scene } from './scenes';
+import { lastDemoIndex, type Scene } from './scenes';
 
 const KEYS: readonly (readonly [string, string])[] = [
   ['← →', 'pindah'],
@@ -34,6 +34,7 @@ export function Hud({ scenes, cursor, hints }: HudProps) {
         </span>
         <span className="presentasi-hud__label">{scene ? scene.label : 'Pembuka'}</span>
         {scene && !scene.demo ? <span className="text-ink-3">· cadangan tanya jawab</span> : null}
+        {scene && cursor === lastDemoIndex(scenes) ? <span className="text-ink">· akhir jalur · Q&amp;A: tekan 5–9</span> : null}
       </p>
       {hints ? (
         <ul className="presentasi-hud__keys num" aria-label="Pintasan papan ketik">
