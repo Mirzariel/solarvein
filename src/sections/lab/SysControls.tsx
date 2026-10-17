@@ -30,23 +30,25 @@ const decimalsOf = (step: number) => {
 };
 
 /**
- * Satu perubahan sistem menjalankan simulasi hari (30 ms, sampai beberapa ratus ms untuk tangki besar). Agar jari tetap
+ * Satu perubahan sistem membuat semua bagian yang membaca store menghitung ulang (simulasi hari dan render). Agar jari tetap
  * mulus: slider menampilkan nilai draf seketika, dan menulis ke store paling cepat satu kali per selang yang
- * menyesuaikan biaya penulisan terakhir (minimal 70 ms); nilai terakhir selalu ditulis (trailing).
+ * mengikuti biaya NYATA penulisan terakhir (penulisan sinkron sampai dua frame tergambar, dikali 2; minimal 60 ms,
+ * maksimal 900 ms). Nilai terakhir selalu ditulis (trailing), sehingga thread utama punya jeda untuk masukan.
  */
 function SysSliderImpl({ spec, disabled }: { spec: SysSliderSpec; disabled?: boolean }) {
   const stored = useSystemStore((s) => spec.get(s.sys));
   const [draft, setDraft] = useState<number | null>(null);
   const pending = useRef<number | null>(null);
+  const busy = useRef(false);
   const timer = useRef<number | null>(null);
-  const gap = useRef(70);
 
+  /** Tulis ke store; panggil done(selang) setelah dua frame tergambar. */
   const commit = useCallback(
-    (n: number) => {
+    (n: number, done: (gapMs: number) => void) => {
       const st = useSystemStore.getState();
       const t0 = performance.now();
       st.setSys(spec.patch(n, st.sys));
-      gap.current = Math.max(70, Math.min(900, (performance.now() - t0) * 1.6));
+      requestAnimationFrame(() => requestAnimationFrame(() => done(Math.max(60, Math.min(900, (performance.now() - t0) * 2)))));
     },
     [spec],
   );
@@ -54,23 +56,25 @@ function SysSliderImpl({ spec, disabled }: { spec: SysSliderSpec; disabled?: boo
   const onChange = useCallback(
     (n: number) => {
       setDraft(n);
-      if (timer.current !== null) {
-        pending.current = n; // trailing: ditulis saat selang habis
+      if (busy.current) {
+        pending.current = n; // trailing: ditulis setelah selang
         return;
       }
-      commit(n);
-      const tick = () => {
-        timer.current = null;
-        if (pending.current !== null) {
-          const v = pending.current;
-          pending.current = null;
-          commit(v);
-          timer.current = window.setTimeout(tick, gap.current);
-        } else {
-          setDraft(null);
-        }
+      busy.current = true;
+      const after = (gapMs: number) => {
+        timer.current = window.setTimeout(() => {
+          timer.current = null;
+          if (pending.current !== null) {
+            const v = pending.current;
+            pending.current = null;
+            commit(v, after);
+          } else {
+            busy.current = false;
+            setDraft(null);
+          }
+        }, gapMs);
       };
-      timer.current = window.setTimeout(tick, gap.current);
+      commit(n, after);
     },
     [commit],
   );
@@ -83,7 +87,7 @@ function SysSliderImpl({ spec, disabled }: { spec: SysSliderSpec; disabled?: boo
   );
   // nilai store berubah dari luar (setel ulang, preset): lepaskan draf bila tidak ada penulisan tertunda
   useEffect(() => {
-    if (pending.current === null && timer.current === null) setDraft(null);
+    if (!busy.current) setDraft(null);
     else if (draft !== null && Math.abs(stored - draft) < 1e-9 && pending.current === null) setDraft(null);
   }, [stored, draft]);
 

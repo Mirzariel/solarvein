@@ -11,6 +11,7 @@ import {
 } from '../sim/system';
 import { useSystemStore, type HotelPresetId } from '../state/system';
 import { Button, ResetIcon, SegmentedControl, formatId, type SegmentedOption } from '../ui';
+import './lab/lab.css';
 import { Group, SysSlider, SysToggle, type SysSliderSpec } from './lab/SysControls';
 
 /**
@@ -259,7 +260,7 @@ function ControlPanelImpl() {
     st.setDesiccantView({ regenAir: DEFAULT_SYSTEM.desiccant.regenAir, regenC: 50 });
   };
   return (
-    <div className="space-y-6">
+    <div className="lab-rig space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <PresetControl />
         <Button size="sm" variant="ghost" icon={<ResetIcon size={16} />} onClick={reset} title="Kembalikan semua nilai ke bawaan">

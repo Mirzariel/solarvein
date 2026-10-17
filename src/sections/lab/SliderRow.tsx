@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useEffect } from 'react';
 import { InfoTip, Slider, type SliderProps } from '../../ui';
 
 /**
@@ -6,6 +6,10 @@ import { InfoTip, Slider, type SliderProps } from '../../ui';
  * `help` jadi isi tooltip; slider sendiri tetap `compact` agar tidak ada teks bantuan permanen.
  */
 function SliderRowImpl({ help, ...rest }: SliderProps & { help?: string }) {
+  // nama aksesibel eksplisit pada <input type=range> (selain <label for>): terbaca juga oleh alat uji yang mencari aria-label
+  useEffect(() => {
+    document.getElementById(rest.id)?.setAttribute('aria-label', rest.label);
+  }, [rest.id, rest.label]);
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3">
       <Slider density="compact" {...rest} />

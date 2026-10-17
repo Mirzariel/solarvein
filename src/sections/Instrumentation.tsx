@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useInView } from '../hooks';
 import { LABELS, type BaselineId } from '../sim/system';
 import { useDay } from '../state/systemSelectors';
 import { useSystemStore } from '../state/system';
@@ -8,7 +9,7 @@ import { dayFlows } from '../charts/lab/flowModel';
 import { DayChart, TemperatureChart } from '../charts/lab/LabCharts';
 import { Tabs, type TabSpec } from './lab/Tabs';
 import { U } from './lab/units';
-import { useSettledView } from './lab/useSettledView';
+import { useIdleMemo, useSettledView } from './lab/useSettledView';
 
 type TabId = 'aliran' | 'suhu' | 'harian';
 const TABS: readonly TabSpec<TabId>[] = [
@@ -37,19 +38,22 @@ function DayReadouts() {
 
 /** Hasil tahunan (tier berat, ditunda): bagian surya dan CO2e bersih terhadap empat pembanding. */
 function YearReadouts() {
-  const { view, pending: calculating } = useSettledView();
+  // tier berat: hanya dihitung bila terlihat, setelah geseran berhenti, dan satu per satu (waktu senggang)
+  const [ref, inView] = useInView<HTMLDivElement>({ rootMargin: '300px' });
+  const { view, pending } = useSettledView(280, inView);
   const strategy = useSystemStore((s) => s.strategy);
-  const year = useMemo(() => view.year(strategy), [view, strategy]);
-  const base = useMemo(() => view.baselines(), [view]);
+  const year = useIdleMemo(() => view.year(strategy), [view, strategy]);
+  const base = useIdleMemo(() => view.baselines(), [view, year]);
+  const calculating = pending || year === undefined || base === undefined;
   return (
-    <div className={calculating ? 'opacity-60 transition-opacity' : 'transition-opacity'} aria-busy={calculating}>
+    <div ref={ref} className={calculating ? 'opacity-60 transition-opacity' : 'transition-opacity'} aria-busy={calculating}>
       <div className="grid grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-3 xl:grid-cols-5">
-        <Readout label="Bagian air panas dari surya, setahun" value={year.totals.solarFraction * 100} unit="%" kind="neutral" size="md" digits={0} />
+        <Readout label="Bagian air panas dari surya, setahun" value={(year?.totals.solarFraction ?? NaN) * 100} unit="%" kind="neutral" size="md" digits={0} />
         {BASELINES.map((b) => (
           <Readout
             key={b}
             label={`CO₂e bersih dihindari terhadap ${b}`}
-            value={base.ledgers[b].netKgPerYear / 1000}
+            value={(base?.ledgers[b].netKgPerYear ?? NaN) / 1000}
             unit="t/tahun"
             kind="neutral"
             size="md"
@@ -63,7 +67,7 @@ function YearReadouts() {
         {calculating ? 'Menghitung ulang angka tahunan…' : ''}
       </p>
       <Disclosure title="Kalimat putusan terhadap pembanding" hint="Dibuat dari angka di atas" level={4} className="mt-2 max-w-3xl">
-        <U>{base.verdict}</U>
+        <U>{base?.verdict ?? ''}</U>
       </Disclosure>
     </div>
   );
