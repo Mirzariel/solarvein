@@ -27,7 +27,7 @@ export const DAY_ASSUMPTIONS: AssumptionEntry[] = [
   {
     id: 'hari-pemanasan',
     title: 'Hari pemanasan sampai tangki hampir periodik',
-    body: 'Setiap tipe hari didahului hari-hari pemanasan dengan cuaca yang sama sampai perubahan panas tersimpan dalam sehari kurang dari 0,2 % kebutuhan air panas harian (paling sedikit 2 dan paling banyak 14 hari). Hanya hari terakhir yang dicatat, sehingga hasil tidak bergantung pada suhu tangki awal. Tangki besar dengan kebutuhan kecil konvergen lambat dan bisa berhenti di batas 14 hari. Untuk skenario hujan 3 hari, pemanasannya hari-hari berawan, karena hujan panjang biasanya didahului hari yang lebih cerah.',
+    body: 'Setiap tipe hari didahului hari-hari pemanasan dengan cuaca yang sama: sampai 3 hari dengan langkah dua kali lebih panjang, dengan ekstrapolasi sisa relaksasi eksponensial suhu tangki, lalu sampai 2 hari pada langkah sebenarnya. Berhenti bila perubahan panas tersimpan dalam sehari di bawah 0,2 % kebutuhan air panas harian. Hanya hari terakhir yang dicatat, sehingga hasil tidak bergantung pada suhu tangki awal. Pada kasus yang sangat lambat (tangki besar, kebutuhan kecil) sisa perubahan panas tersimpan dilaporkan di total dan tidak disembunyikan. Untuk skenario hujan 3 hari, pemanasannya hari-hari berawan, karena hujan panjang biasanya didahului hari yang lebih cerah.',
     tag: 'asumsi',
   },
   {
@@ -66,15 +66,28 @@ export const DAY_ASSUMPTIONS: AssumptionEntry[] = [
   },
   {
     id: 'hari-bypass-pendingin',
-    title: 'Bypass sebagai pendingin sel (pembuangan kalor)',
-    body: 'Bypass berarti panas sengaja dibuang lewat pendingin kering dengan suhu kembali ambien + 8 K agar sel lebih dingin; nilainya adalah tambahan listrik PV. Pompa pembuangan hanya dijalankan bila tambahan listrik PV (setelah derating) lebih besar daripada daya pompa; jika tidak, pompa mati dan kolektor diam.',
+    title: 'Bypass sebagai pembuang panas (dry cooler) yang mendinginkan sel',
+    body: 'Bypass berarti panas sengaja dibuang lewat pembuang panas (dry cooler) dengan suhu kembali ambien + 8 K agar sel lebih dingin; nilainya adalah tambahan listrik PV. Pompa pembuangan hanya dijalankan bila tambahan listrik PV (setelah derating) lebih besar daripada daya pompa; jika tidak, pompa mati dan kolektor diam.',
     value: 'Kembali = ambien + 8 K',
     tag: 'asumsi',
   },
   {
+    id: 'hari-alasan-bypass',
+    title: 'Dua alasan panas dibuang ke pembuang panas',
+    body: 'Alasan "tangki penuh" dipakai hanya bila tangki hampir penuh pada skala berguna (keadaan muat 0,9 atau lebih antara air jaringan dan titik setel, atau suhu atas di dekat batas maksimum). Bila tangki belum penuh tetapi cairan kolektor belum cukup panas untuk mengisinya (kurang dari 1 K di atas dasar tangki), alasannya "cairan belum cukup panas".',
+    value: 'Penuh: keadaan muat ≥ 0,9',
+    tag: 'asumsi',
+  },
+  {
+    id: 'hari-neraca-panas',
+    title: 'Neraca panas kolektor: tidak ada selisih yang tak berlabel',
+    body: 'Panas yang dikumpulkan sama dengan panas surya untuk air panas, ditambah bypass, ditambah panas ke desikan, ditambah rugi diam tangki, ditambah perubahan panas tersimpan di tangki. Dengan pemanasan yang hampir periodik, suku terakhir kecil dan dilaporkan sebagai perubahan tangki di total; selisih sekitar 8 kWh_th per tahun pada hitungan sebelumnya adalah suku ini, bukan hilang.',
+    tag: 'simulasi',
+  },
+  {
     id: 'hari-gerbang-nilai-desikan',
     title: 'Gerbang nilai untuk desikan pada strategi adaptif',
-    body: 'Pada strategi adaptif, panas sisa baru dikirim ke desikan bila penghematan listrik bersihnya per kWh_th (dari evaluateDesiccant pada kondisi saat itu) lebih besar daripada tambahan listrik PV per kWh_th bila panas dibuang lewat bypass (dihitung dari dua simulasi pada suhu masuk berbeda). Bila tidak, panas dibuang. Jalur desikan pada setelan bawaan tidak lolos gerbang ini, sehingga angka adaptif sama dengan prioritas air panas kecuali ada surplus dan asumsi desikan yang lebih optimistis.',
+    body: 'Pada strategi adaptif, panas sisa baru dikirim ke desikan bila penghematan listrik bersihnya per kWh_th (dari evaluateDesiccant pada kondisi saat itu) lebih besar daripada tambahan listrik PV per kWh_th bila panas dibuang lewat bypass (dihitung dari dua simulasi pada suhu masuk berbeda). Bila tidak, panas dibuang. Jalur desikan pada setelan bawaan tidak lolos gerbang ini, sehingga angka adaptif sama dengan prioritas air panas kecuali ada surplus dan asumsi desikan yang lebih optimistis. Evaluasi desikan di-cache per (suhu regenerasi dibulatkan 1 K, suhu udara 0,25 K, rasio kelembapan 2e-4) agar cepat; galat pembulatan jauh di bawah ketidakpastian model.',
     tag: 'hipotesis',
   },
   {

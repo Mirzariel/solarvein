@@ -253,6 +253,21 @@ describe('router: tank acceptance and the value gate', () => {
     expect(out.reason).toBe('tangki-penuh-bypass');
   });
 
+  it('bypass reason: fluid too cold to charge vs tank full', () => {
+    const cold = allocate({ ...base({ tankTopC: 40 }), tankAcceptW: 0, tankRefusal: 'cold' });
+    expect(cold.reason).toBe('fluida-belum-cukup-panas');
+    const full = allocate({ ...base({ tankTopC: 80 }), tankAcceptW: 0, tankRefusal: 'full' });
+    expect(full.reason).toBe('tangki-penuh-bypass');
+    expect(allocate({ ...base({ tankTopC: 80 }), tankAcceptW: 0 }).reason).toBe('tangki-penuh-bypass');
+    // the desiccant-too-cold reason keeps priority over the tank reason
+    const tooCold = allocate({
+      ...base({ tankTopC: 80, collectorOutletC: 60, desiccantWanted: true }),
+      tankAcceptW: 0,
+      tankRefusal: 'cold',
+    });
+    expect(tooCold.reason).toBe('desikan-terlalu-dingin');
+  });
+
   it('desiccantPreferred = false (value gate) sends the surplus to bypass even when hot enough', () => {
     const wanted = base({ tankTopC: 80, collectorOutletC: 85, desiccantWanted: true });
     expect(allocate({ ...wanted, desiccantPreferred: true }).allocW.desiccant).toBe(3000);

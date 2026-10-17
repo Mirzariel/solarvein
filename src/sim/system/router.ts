@@ -57,6 +57,12 @@ export interface RouterInputX extends RouterInput {
   tankAcceptW?: number;
   desiccantPreferred?: boolean;
   regenSourceC?: number;
+  /**
+   * Why the tank takes (all of) no heat, used only to label the bypass reason: 'full' = the tank is (nearly) full
+   * → 'tangki-penuh-bypass'; 'cold' = the charge fluid is not warm enough to charge the tank, the heat goes to the
+   * dry cooler → 'fluida-belum-cukup-panas'. Absent → 'full' (legacy).
+   */
+  tankRefusal?: 'full' | 'cold';
 }
 
 /** True for 11:00 ≤ hour < 15:00 (the naive 'fixed-schedule' window). */
@@ -148,7 +154,11 @@ export function allocate(input: RouterInputX): RouterState {
       reason = scheduled ? 'jadwal-tetap' : 'regenerasi-desikan';
       break;
     default:
-      reason = desiccantTooCold ? 'desikan-terlalu-dingin' : 'tangki-penuh-bypass';
+      reason = desiccantTooCold
+        ? 'desikan-terlalu-dingin'
+        : input.tankRefusal === 'cold'
+          ? 'fluida-belum-cukup-panas'
+          : 'tangki-penuh-bypass';
   }
 
   return { mode: 'A', pumpOn: true, allocW: alloc, valves, reason };
