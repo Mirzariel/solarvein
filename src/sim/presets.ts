@@ -2,7 +2,7 @@ import type { SimInputs } from './types';
 
 /** Kunci input bertipe angka pada SimInputs. */
 export type NumericInputKey = {
-  [K in keyof SimInputs]: SimInputs[K] extends number ? K : never;
+  [K in keyof SimInputs]-?: SimInputs[K] extends number ? K : never;
 }[keyof SimInputs];
 
 /**

@@ -3,7 +3,7 @@ import { clampInputs, compareConfigurations, simulate } from './model';
 import { DEFAULT_INPUTS, INPUT_LIMITS, PRESETS, type NumericInputKey } from './presets';
 import type { CollectorConfig, SimInputs, SimResult } from './types';
 
-const CONFIGS: CollectorConfig[] = ['conventional-pv', 'pvt-harvest-only', 'solarvein-dual'];
+const CONFIGS: CollectorConfig[] = ['conventional-pv', 'pvt-harvest-only', 'solarvein-dual', 'pvt-liquid'];
 const base = (o: Partial<SimInputs> = {}): SimInputs => ({ ...DEFAULT_INPUTS, ...o });
 
 function allFinite(r: SimResult): boolean {
