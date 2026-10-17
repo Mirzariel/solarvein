@@ -1,0 +1,123 @@
+/* Presentation mode (?presentasi=1). Everything is scoped to html.presentasi / .presentasi-hud, so the normal site is untouched.
+   Target: the HORIZON 2026 final projector, about 1280 x 720 at 125 % = 1024 x 576 CSS px. */
+
+html.presentasi {
+  /* Instant jumps between scenes: no smooth native scroll. */
+  scroll-behavior: auto !important;
+  scroll-padding-top: 0;
+  /* Larger type for the room: small text +2 px, body +2 px, display tokens untouched (already large). */
+  --text-body: 19px;
+  --text-body--line-height: 28px;
+  --text-body-s: 19px;
+  --text-body-s--line-height: 28px;
+  --text-body-l: 21px;
+  --text-body-l--line-height: 31px;
+  --text-prose: 21px;
+  --text-prose--line-height: 31px;
+  --text-lead: 25px;
+  --text-lead--line-height: 34px;
+  --text-small: 16px;
+  --text-small--line-height: 23px;
+  --text-caption: 16px;
+  --text-caption--line-height: 23px;
+  --text-label: 14px;
+  --text-label--line-height: 18px;
+  --text-ui: 17px;
+  --text-ui--line-height: 22px;
+  --text-button: 17px;
+  --text-button--line-height: 22px;
+  --text-mono-s: 16px;
+  --text-mono-s--line-height: 22px;
+  --text-mono-label: 14px;
+  --text-mono-label--line-height: 18px;
+  --text-readout-m: 28px;
+  --text-readout-m--line-height: 32px;
+}
+
+/* Secondary chrome hidden: the site header (and the skip link) give way to the HUD rail. */
+html.presentasi header[data-over-photo] {
+  display: none;
+}
+
+.presentasi-hud {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  height: 36px;
+  padding-inline: 24px;
+  background: var(--color-paper);
+  border-bottom: 1px solid var(--color-line);
+  color: var(--color-ink-2);
+  font-size: 14px;
+  line-height: 18px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.presentasi-hud p,
+.presentasi-hud ul {
+  margin: 0;
+}
+
+.presentasi-hud__scene {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex: none;
+}
+
+.presentasi-hud__label {
+  color: var(--color-ink-2);
+}
+
+.presentasi-hud__keys {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  justify-content: center;
+  gap: 18px;
+  min-width: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--color-ink-3);
+}
+
+.presentasi-hud__keys li {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.presentasi-hud__keys kbd {
+  font: inherit;
+  color: var(--color-ink);
+  padding: 0 5px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-xs);
+}
+
+.presentasi-hud__badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-ink-2);
+}
+
+/* ~1024 CSS px (a 1280 px projector at 125 %): drop the H hint, tighten. */
+@media (max-width: 1100px) {
+  .presentasi-hud {
+    gap: 16px;
+    padding-inline: 16px;
+  }
+  .presentasi-hud__keys {
+    gap: 10px;
+    font-size: 12.5px;
+  }
+  .presentasi-hud__keys li:nth-child(6) {
+    display: none;
+  }
+}
