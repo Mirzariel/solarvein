@@ -119,7 +119,7 @@ export function KpiFigure({ id, ratio }: { id: string; ratio: Ratio }) {
         <div>
           <BaselineBars w={wide ? bodyW / 2 - 24 : barsW} rowH={wide ? 98 : 92} />
           <p className="m-0 mt-3 text-ink-2" style={{ fontSize: 16, lineHeight: '23px', maxWidth: 680 }}>
-            Sudah dikurangi emisi tertanam dan listrik pompa. B2 (PV + pompa kalor air panas) adalah pembanding utama yang jujur; B1 adalah hotel konvensional.
+            Sudah dikurangi emisi tertanam dan listrik pompa. B2 (PV + pompa kalor air panas) adalah pembanding terkuat; B1 adalah hotel konvensional.
             Umur pakai <span>{formatId(sys.carbon.lifetimeYears, 0)}</span> tahun.
           </p>
         </div>

@@ -405,7 +405,7 @@ function dirOf(x: number, eps: number): -1 | 0 | 1 {
 }
 
 /**
- * Kalimat vonis dari angka (tanpa pemenang bawaan). Urutan: B2 sebagai pembanding utama yang jujur, B1 sebagai konteks,
+ * Kalimat vonis dari angka (tanpa pemenang bawaan). Urutan: B2 sebagai pembanding terkuat, B1 sebagai konteks,
  * lalu B3 dan B4 (dengan titik impas pemulihan kondensor). Bila karbon dan uang menunjuk arah berlawanan, dinyatakan eksplisit.
  */
 export function verdictFor(
