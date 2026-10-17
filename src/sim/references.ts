@@ -14,6 +14,13 @@ export interface Reference {
 }
 
 export const REFERENCES = {
+  "pesaran-mills-1987": {
+    id: "pesaran-mills-1987",
+    apa: "Pesaran, A. A., & Mills, A. F. (1987). Modeling of solid-side mass transfer in desiccant particle beds (SERI/TP-252-2952). Solar Energy Research Institute.",
+    url: "https://www.nrel.gov/docs/legosti/old/2952.pdf",
+    supports: "RD silica gel water isotherm as a polynomial RH(W) at 25 °C (App. A, eq. A-1) and heat of adsorption correlation (eq. A-3); verified by worker W3 in the full text.",
+    verified: true,
+  },
   "jcm-id-ef-2022": {
     id: "jcm-id-ef-2022",
     apa: "Global Environment Centre Foundation (GEC). (2022). 令和4年度JCM設備補助事業 電力CO2排出係数一覧表 [FY2022 JCM Equipment Subsidy Programme: Electricity CO2 emission factors table; Table 2-1 and Table 2-2, Indonesia]. Published 6 April 2022. Data source cited therein: Directorate General of Electricity, Ministry of Energy and Mineral Resources (ESDM), Indonesia, Nilai FE GRK Sistem Ketenagalistrikan Tahun 2019.",

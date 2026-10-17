@@ -18,3 +18,7 @@ export * from './assumptions/dhw';
 export * from './assumptions/heatpump';
 export * from './desiccant';
 export * from './assumptions/desiccant';
+export * from './day';
+export * from './assumptions/day';
+export { REFERENCES } from '../references';
+export type { RefId, Reference } from '../references';

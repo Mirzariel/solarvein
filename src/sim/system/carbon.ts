@@ -14,6 +14,7 @@
  * Lihat docs/physics/carbon.md.
  */
 import type {
+  RefIdLike,
   AnnualResult,
   BaselineComparison,
   BaselineId,
@@ -49,7 +50,7 @@ export interface HeaterRates {
   fuelPerKWhTh: number;
   /** Listrik per kWh_th (0 bila LPG) [kWh_e/kWh_th]. */
   elecPerKWhTh: number;
-  refId: string;
+  refId: RefIdLike;
   basis: 'lpg' | 'listrik';
 }
 
@@ -179,7 +180,7 @@ function embodiedFactor(
   id: string,
   c: SystemInputs['carbon'],
   totalKg: number,
-): { value: number; unit: string; refId?: string } {
+): { value: number; unit: string; refId?: RefIdLike } {
   switch (id) {
     case 'pvt':
       return { value: nn(c.embodiedPvtKgPerM2), unit: 'kgCO₂e/m²', refId: CARBON_REF.pvtEmbodied };

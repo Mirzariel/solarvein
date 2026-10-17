@@ -22,6 +22,7 @@
  *  - Fields may be ADDED (prefer optional). Never rename/remove without the lead.
  */
 import type { SimInputs } from '../types';
+import type { RefId } from '../references';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Branded energy units
@@ -46,8 +47,8 @@ export const kWhFuel = (x: number): KWhFuel => x as KWhFuel;
  * usulan = proposed innovation.
  */
 export type EvidenceTag = 'mapan' | 'terbit' | 'simulasi' | 'asumsi' | 'hipotesis' | 'usulan';
-/** Id into REFERENCES (src/sim/references.ts, owned by R0). Tightened to `RefId` after R0 merges. */
-export type RefIdLike = string;
+/** Id into REFERENCES (src/sim/references.ts). Unknown ids are a compile error. */
+export type RefIdLike = RefId;
 
 /** One documented assumption (Lab "Rincian rekayasa", Validasi). */
 export interface AssumptionEntry {

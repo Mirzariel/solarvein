@@ -1,13 +1,13 @@
 import type { AssumptionEntry, DayScenarioId } from '../contract';
 
 /**
- * Hari per tahun untuk tiap tipe hari (asumsi ilustratif; jumlah 365).
- * TODO(R0): ganti dengan klasifikasi hari dari data iklim kota yang bersumber (BMKG/NASA POWER).
+ * Hari per tahun untuk tiap tipe hari (jumlah 365), dikalibrasi ke GHI tahunan Denpasar (NASA POWER 5,56 kWh/m²/hari).
+ * GHI harian profil: terik 6,07 · berawan 3,90 · hujan 2,04 → rerata berbobot 5,34 (−4 %, konservatif).
  */
 export const ANNUAL_DAY_WEIGHTS: { scenario: Exclude<DayScenarioId, 'hujan-3-hari'>; days: number }[] = [
-  { scenario: 'terik', days: 140 },
-  { scenario: 'berawan', days: 130 },
-  { scenario: 'hujan', days: 95 },
+  { scenario: 'terik', days: 255 },
+  { scenario: 'berawan', days: 95 },
+  { scenario: 'hujan', days: 15 },
 ];
 
 /** Panjang langkah waktu bawaan [jam]. */
@@ -19,10 +19,10 @@ export const DAY_ASSUMPTIONS: AssumptionEntry[] = [
   {
     id: 'hari-bobot-tahunan',
     title: 'Bobot tipe hari dalam setahun',
-    body: 'Hasil tahunan dihitung dari tiga hari tipikal (terik, berawan, hujan) yang dikalikan jumlah harinya. Bobot ini ilustratif dan belum bersumber dari data iklim satu kota.',
-    value: '140 hari terik · 130 hari berawan · 95 hari hujan',
+    body: 'Hasil tahunan dihitung dari tiga hari tipikal (terik, berawan, hujan) yang dikalikan jumlah harinya. Bobot dipilih agar rerata iradiasi tahunan mendekati data Denpasar (NASA POWER 5,56 kWh/m²/hari); hasilnya 5,34, sedikit lebih rendah sehingga konservatif. Skenario hujan (2,0 kWh/m²/hari) adalah kasus berat: rerata hari hujan lebat di Denpasar sekitar 4,1 kWh/m²/hari menurut turunan data harian NASA POWER.',
+    value: '255 hari terik · 95 hari berawan · 15 hari hujan berat (GHI rerata 5,34 kWh/m²/hari)',
     tag: 'asumsi',
-    refId: 'iklim-kota', // TODO(R0)
+    refId: 'nasa-power-denpasar',
   },
   {
     id: 'hari-pemanasan',
