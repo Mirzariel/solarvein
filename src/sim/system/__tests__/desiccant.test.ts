@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CarbonParams, ClimatePoint, DesiccantEvalInput, DesiccantParams, HotelParams } from '../contract';
 import {
+  copRatioSensitivity,
   desiccantSweep,
   equilibriumRh,
   evaluateDesiccant,
@@ -299,5 +300,51 @@ describe('compressor vs desiccant (REGRESSION - human review if it changes)', ()
       expect(hi / CARBON.coilRefCop).toBeGreaterThan(1.2);
       expect(hi / CARBON.coilRefCop).toBeLessThan(1.7);
     }
+  });
+});
+
+describe('operating flag, break-even COP ratio, sensitivity', () => {
+  it('a bed that does (almost) nothing is not operating: net 0, no fan penalty, tidak-layak, with a note', () => {
+    const e = evaluateDesiccant(input({ regenC: 35 }));
+    expect(e.operating).toBe(false);
+    expect(e.hvac.netSavingWe).toBe(0);
+    expect(e.hvac.fanWe).toBe(0);
+    expect(e.verdict).toBe('tidak-layak');
+    expect(e.notes.join(' ')).toMatch(/Tidak beroperasi/);
+    expect(e.breakEvenCopRatio).toBeNull();
+  });
+
+  it('keeps the honest negative when it operates but loses (heavy PV penalty)', () => {
+    const e = evaluateDesiccant(input({ regenC: 60, pvPenaltyWe: 6000 }));
+    expect(e.operating).toBe(true);
+    expect(e.hvac.netSavingWe).toBeLessThan(0);
+    expect(e.verdict).toBe('tidak-layak');
+  });
+
+  it('break-even ratio is a true root: net ~ 0 there, > 0 above, < 0 below', () => {
+    for (const regenC of [45, 55, 65]) {
+      for (const regenAir of ['ambient', 'exhaust'] as const) {
+        const base = withAir(regenAir, { regenC });
+        const e = evaluateDesiccant(base);
+        expect(e.operating).toBe(true);
+        const r = e.breakEvenCopRatio;
+        expect(r).not.toBeNull();
+        const at = (x: number) => copRatioSensitivity(base, [x])[0]!.netSavingWe;
+        expect(Math.abs(at(r!))).toBeLessThan(1); // W_e
+        expect(at(r! * 1.05)).toBeGreaterThan(0);
+        expect(at(r! * 0.95)).toBeLessThan(0);
+      }
+    }
+  });
+
+  it('no COP advantage => break-even above 1; null when not operating', () => {
+    expect(evaluateDesiccant(input({ regenC: 55 })).breakEvenCopRatio).toBeGreaterThan(1);
+    expect(evaluateDesiccant(input({ regenC: 35 })).breakEvenCopRatio).toBeNull();
+    expect(evaluateDesiccant(input({ regenC: 55, pvPenaltyWe: 9000 })).breakEvenCopRatio).toBeNull();
+  });
+
+  it('net saving is monotone increasing in the COP ratio', () => {
+    const rows = copRatioSensitivity(input({ regenC: 55 }), [1, 1.3, 1.5, 2, 3]);
+    for (let k = 1; k < rows.length; k++) expect(rows[k]!.netSavingWe).toBeGreaterThan(rows[k - 1]!.netSavingWe);
   });
 });
