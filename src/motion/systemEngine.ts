@@ -342,6 +342,8 @@ export function createSystemEngine(initial: SystemTarget, opts: SystemEngineOpti
       applyRouter(t, M.followW);
       aimValves(t, M.followValveW);
     }
+    // goals within their settle tolerance of a resting scalar are already reached (float noise must not start motion)
+    for (const s of all) if (s.v === 0 && s.x !== s.goal && Math.abs(s.x - s.goal) < s.eps) s.x = s.goal;
     if (pending.length === 0 && !all.some((s) => s.x !== s.goal || s.v !== 0)) {
       stopTicker();
       isScripted = false;
