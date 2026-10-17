@@ -26,3 +26,4 @@ export { Picture, type PictureProps } from './Picture';
 export { photoSet, hasPhoto, PHOTO_BASE, type PhotoName, type PhotoSet, type PhotoMeta } from './photos';
 export { Logo, LogoMark, LogoWordmark, type LogoProps } from './Logo';
 export { AmbientVideo, type AmbientVideoProps } from './AmbientVideo';
+export { Evidence, EvidenceDot, type EvidenceProps } from './Evidence';
