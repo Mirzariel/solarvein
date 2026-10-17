@@ -72,3 +72,28 @@ export const ARROW = {
   /** direction may flip only when the amplitude has faded below this */
   flipAmp: 0.02,
 } as const;
+
+/**
+ * v2 system motion (src/motion/systemEngine.ts). Seconds and rad/s.
+ *
+ * A mode (A/B/C) or scenario change is a scripted ~1,1 s transition made of staggered critically damped springs
+ * whose goals are applied at different times (so velocity is kept when the user retargets mid-flight):
+ *   climate (G, ambient, RH, wind, rain, clock hour, inlet, tank)  t = 0        w 9,7  settles 0 - 0,6 s (0 - 0,55 T)
+ *   router rule / reason / pump command                            t = 0,45 T   (the 0,35 - 0,6 T window)
+ *   valves (4 fractions, Σ = 1, rate limited)                      t = 0,40 T   w 8,8  settles 0,44 - 1,1 s (0,4 - 1,0 T)
+ *   collected heat Q (scales allocW)                               with the climate; a pump start waits for the switch
+ * Real valve actuators take tens of seconds; the stroke is compressed ~30x so the router reads as one gesture.
+ * Hour scrubbing is NOT scripted: every goal is applied at once and follows with w = 22 (valves w = 9).
+ */
+export const SYSTEM_MOTION = {
+  transition: 1.1,
+  climateW: 9.7,
+  switchAt: 0.45,
+  valveFrom: 0.4,
+  valveW: 8.8,
+  /** max valve speed [fraction/s] (full stroke in >= 0,33 s) */
+  valveVmax: 3,
+  openW: 12,
+  followW: 22,
+  followValveW: 9,
+} as const;

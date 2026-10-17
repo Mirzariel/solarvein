@@ -42,8 +42,10 @@ export interface VisualFrame {
   router?: RouterSnapshot;
   /** v2: climate at the current scenario time (sky, humidity). */
   climate?: ClimatePoint;
-  /** v2: scenario hour of this frame. */
+  /** v2: scenario hour of this frame (0..24, or 0..72 on the 3-day scenario; continuous, follows the clock sweep). */
   hour?: number;
+  /** v2: hour of day 0..24 of this frame (hour mod 24). */
+  hourOfDay?: number;
 }
 
 export type FrameListener = (f: VisualFrame) => void;
