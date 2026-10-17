@@ -15,6 +15,7 @@ import { useEntrySweep } from './day/useEntrySweep';
 import './DayAtHotel.css';
 
 const SCENARIO_CHIPS: readonly DayScenarioId[] = ['terik', 'berawan', 'hujan'];
+const SCENARIO_SHORT: Record<DayScenarioId, string> = { terik: 'Terik', berawan: 'Berawan', hujan: 'Hujan berat', 'hujan-3-hari': '3 hari hujan' };
 const ceilTo = (v: number, q: number): number => Math.max(q, Math.ceil(v / q - 1e-9) * q);
 
 /**
@@ -84,7 +85,7 @@ export default function DayAtHotel() {
               if (dayView === '72h') setDayView('24h');
               setScenario(v);
             }}
-            options={SCENARIO_CHIPS.map((s) => ({ value: s, label: LABELS.scenario[s] }))}
+            options={SCENARIO_CHIPS.map((s) => ({ value: s, label: SCENARIO_SHORT[s], description: LABELS.scenario[s] }))}
           />
           {available ? (
             <Button variant="ghost" size="sm" icon={<ResetIcon size={14} />} onClick={replay} disabled={dayView !== '24h' || running} className="ml-auto">

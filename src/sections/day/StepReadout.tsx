@@ -53,10 +53,10 @@ export function StepReadout({ step, model, hour }: { step: DayStep; model: DayMo
       </div>
 
       <ul className="m-0 mt-4 list-none border-t border-line p-0 pt-2">
-        <Row swatch={<Chip className="bg-heat-mark" />} label="Langsung dari kolektor">
+        <Row swatch={<Chip className="bg-heat-mark" />} label="Kolektor langsung">
           <Val v={r.allocW.dhw / 1000} unit="kW" kind="th" />
         </Row>
-        <Row swatch={<Chip className="border border-heat-mark bg-heat-mark/40" />} label="Dari tangki">
+        <Row swatch={<Chip className="border border-heat-mark bg-heat-mark/40" />} label="Tangki">
           <Val v={step.dhw.fromTankW / 1000} unit="kW" kind="th" />
         </Row>
         <Row swatch={<Chip className="bg-loss" />} label="Pemanas cadangan">

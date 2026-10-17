@@ -1,14 +1,13 @@
 import { memo } from 'react';
-import type { RegenAirSource, Verdict } from '../../sim/system';
-import type { DesiccantEvalDetail } from '../../sim/system/desiccant';
-import { formatId } from '../../ui';
+import { NEAR_BREAK_EVEN_SHARE, type DesiccantEvalDetail, type RegenAirSource, type Verdict } from '../../sim/system';
+import { formatId, formatWithUnit } from '../../ui';
 import { linePath, linear } from '../day/scales';
 
 /**
  * Net HVAC saving (kW_e) against regeneration temperature, ambient vs exhaust regeneration air.
  * Plain on purpose: both series dashed (the whole path is a hypothesis), verdict by marker shape (square family,
  * so it is never confused with the evidence dots), "tidak beroperasi" drawn as × on the zero line.
- * Hollow/solid/half = Layak / Marginal / Tidak layak is spelled out in the legend under the chart.
+ * Solid / half / hollow = Layak / Marginal / Tidak layak is spelled out in the legend under the chart.
  */
 const TICK = { fontFamily: 'var(--font-mono)', fontSize: 12 } as const;
 const HALO = { paintOrder: 'stroke', stroke: 'var(--color-paper)', strokeWidth: 4 } as const;
@@ -18,8 +17,8 @@ const TOP = 14;
 const BOTTOM = 34;
 
 const SERIES: Record<RegenAirSource, { color: string; dash: string; label: string }> = {
-  ambient: { color: 'var(--color-ink)', dash: '6 4', label: 'Udara ambien' },
-  exhaust: { color: 'var(--color-ink-2)', dash: '2 3', label: 'Udara buang hotel' },
+  ambient: { color: 'var(--color-ink)', dash: '6 4', label: 'Udara luar' },
+  exhaust: { color: 'var(--color-ink-2)', dash: '2 3', label: 'Udara buangan hotel' },
 };
 
 export function Marker({ verdict, operating, x, y, color, size = 9 }: { verdict: Verdict; operating: boolean; x: number; y: number; color: string; size?: number }) {
@@ -41,7 +40,7 @@ export function Marker({ verdict, operating, x, y, color, size = 9 }: { verdict:
 }
 
 export const verdictText = (e: DesiccantEvalDetail): string =>
-  !e.operating ? 'Tidak beroperasi' : e.verdict === 'layak' ? 'Layak' : e.verdict === 'marginal' ? 'Marginal' : 'Tidak layak';
+  !e.operating ? 'Tidak beroperasi' : e.nearBreakEven ? '≈ impas' : e.verdict === 'layak' ? 'Layak' : e.verdict === 'marginal' ? 'Marginal' : 'Tidak layak';
 
 export interface DesiccantChartProps {
   width: number;
@@ -66,6 +65,8 @@ export const DesiccantChart = memo(function DesiccantChart({ width, series, yMin
   const Y = linear(yMin, yMax, plotB, plotT);
   const colW = temps.length > 1 ? (X(tMax) - X(tMin)) / (temps.length - 1) : 40;
 
+  const coilKW = Math.max(0, ...['ambient', 'exhaust'].flatMap((a) => (series[a as RegenAirSource] ?? []).map((e) => e.hvac.coilRefWe / 1000)));
+  const bandKW = NEAR_BREAK_EVEN_SHARE * coilKW;
   const ticks: number[] = [];
   for (let v = Math.ceil(yMin); v <= yMax + 1e-9; v += 1) ticks.push(v);
 
@@ -84,6 +85,9 @@ export const DesiccantChart = memo(function DesiccantChart({ width, series, yMin
 
   return (
     <svg width={width} height={H} viewBox={`0 0 ${width} ${H}`} className="block max-w-none" aria-hidden="true" focusable="false">
+      {/* ≈ impas band: |net| below 2 % of the reference-coil electricity */}
+      <rect x={L} y={Y(bandKW)} width={width - L - R} height={Math.max(1, Y(-bandKW) - Y(bandKW))} fill="var(--color-sunken)" />
+      
       {/* grid */}
       {ticks.map((v) => (
         <g key={v}>
@@ -166,6 +170,10 @@ export function VerdictKey() {
       <li className="inline-flex items-center gap-2">{k('marginal')}Marginal</li>
       <li className="inline-flex items-center gap-2">{k('tidak-layak')}Tidak layak</li>
       <li className="inline-flex items-center gap-2">{k('none')}Tidak beroperasi</li>
+      <li className="inline-flex items-center gap-2">
+        <span aria-hidden="true" className="block h-2.5 w-4 bg-sunken outline outline-1 outline-line" />
+        ≈ impas (di bawah {formatWithUnit(NEAR_BREAK_EVEN_SHARE * 100, '%', 0)} koil acuan)
+      </li>
     </ul>
   );
 }
