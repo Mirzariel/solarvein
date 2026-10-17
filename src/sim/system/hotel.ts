@@ -21,6 +21,8 @@ import { DEFAULT_INPUTS } from '../presets';
 import { WATER_CP_J_PER_KG_K, WATER_RHO_KG_PER_L, dhwDemandW } from './dhw';
 import { humidityRatio } from './psychro';
 import { tankUaWPerK } from './tank';
+import { DEFAULT_CARBON_PARAMS } from './assumptions/carbon';
+import { DEFAULT_ECONOMIC_PARAMS } from './assumptions/economics';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Hotel presets
@@ -278,29 +280,8 @@ export const DEFAULT_SYSTEM: SystemInputs = {
     regenAirKgS: 1.0,
   },
   controller: { strategy: 'adaptive', onK: 6, offK: 2, desiccantMinRegenC: 45 },
-  carbon: {
-    gridKgPerKWhE: 0.8,
-    lpgKgPerKWhFuel: 0.227,
-    hpwhCop: 3.5,
-    coilRefCop: 3.0,
-    aftercoolerCop: 4.5,
-    embodiedPvtKgPerM2: 250,
-    embodiedPvKgPerKWp: 1100,
-    embodiedBosKg: 2500,
-    embodiedDesiccantKg: 1500,
-    condenserRecoveryFraction: 0.5,
-    condenserRecoveryKWhEPerKWhTh: 0.02,
-    embodiedCondenserKitKg: 400,
-    embodiedHpwhKg: 1500,
-    lifetimeYears: 20,
-  },
-  economics: {
-    gridTariffIdrPerKWh: 1700,
-    lpgPriceIdrPerKg: 17500,
-    capexPvtIdrPerM2: [2_500_000, 3_800_000, 5_500_000],
-    capexBosIdr: [150_000_000, 250_000_000, 400_000_000],
-    capexDesiccantIdr: [100_000_000, 200_000_000, 400_000_000],
-    omFractionPerYear: 0.015,
-  },
+  // Single source of truth for carbon & economic defaults: assumptions/{carbon,economics}.ts (W4).
+  carbon: { ...DEFAULT_CARBON_PARAMS },
+  economics: { ...DEFAULT_ECONOMIC_PARAMS },
   heatPumpSource: { enabled: false, carnotFraction: 0.45 },
 };

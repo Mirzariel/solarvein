@@ -42,7 +42,8 @@ export const DEFAULT_CARBON_PARAMS: CarbonParams = {
   aftercoolerCop: 5.0,
   embodiedPvtKgPerM2: 300,
   embodiedPvKgPerKWp: 1000,
-  embodiedBosKg: 600,
+  // hotel scale: ~5 m³ insulated steel buffer tank + HX + valves + piping + controller (asumsi, R0/council to review)
+  embodiedBosKg: 2000,
   embodiedDesiccantKg: 400,
   condenserRecoveryFraction: 0.35,
   condenserRecoveryKWhEPerKWhTh: 0.03,

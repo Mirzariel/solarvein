@@ -24,7 +24,8 @@ export const DEFAULT_ECONOMIC_PARAMS: EconomicParams = {
   gridTariffIdrPerKWh: 1450,
   lpgPriceIdrPerKg: 16_000,
   capexPvtIdrPerM2: [3_500_000, 5_000_000, 7_000_000],
-  capexBosIdr: [60_000_000, 100_000_000, 160_000_000],
+  // hotel scale: ~5 m³ buffer tank, external HX, 3-way valves, piping, controller (asumsi)
+  capexBosIdr: [150_000_000, 250_000_000, 400_000_000],
   capexDesiccantIdr: [150_000_000, 300_000_000, 500_000_000],
   omFractionPerYear: 0.015,
 };

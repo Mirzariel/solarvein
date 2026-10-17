@@ -11,6 +11,8 @@ import {
 } from '../hotel';
 import { humidityRatio } from '../psychro';
 import { tankGeometry } from '../tank';
+import { DEFAULT_CARBON_PARAMS } from '../assumptions/carbon';
+import { DEFAULT_ECONOMIC_PARAMS } from '../assumptions/economics';
 
 /** Daily plane-of-array energy [kWh/m2] for hours [from, to). */
 function ghi(scenario: DayScenarioId, from = 0, to = 24, dt = 0.02): number {
@@ -234,17 +236,9 @@ describe('DEFAULT_SYSTEM sizing', () => {
       fanEfficiency: 0.5,
     });
     expect(sys.controller).toEqual({ strategy: 'adaptive', onK: 6, offK: 2, desiccantMinRegenC: 45 });
-    expect(sys.carbon).toMatchObject({
-      gridKgPerKWhE: 0.8,
-      lpgKgPerKWhFuel: 0.227,
-      hpwhCop: 3.5,
-      coilRefCop: 3.0,
-      aftercoolerCop: 4.5,
-      condenserRecoveryFraction: 0.5,
-      condenserRecoveryKWhEPerKWhTh: 0.02,
-      lifetimeYears: 20,
-    });
-    expect(sys.economics.gridTariffIdrPerKWh).toBe(1700);
+    // carbon/economic defaults have one source of truth (assumptions/{carbon,economics}.ts)
+    expect(sys.carbon).toEqual(DEFAULT_CARBON_PARAMS);
+    expect(sys.economics).toEqual(DEFAULT_ECONOMIC_PARAMS);
     expect(sys.heatPumpSource).toEqual({ enabled: false, carnotFraction: 0.45 });
   });
 
