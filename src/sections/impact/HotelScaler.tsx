@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useDeferredValue, useEffect, useRef, useState } from 'react';
 import { HOTEL_PRESETS, type BaselineComparison } from '../../sim/system';
 import { useSystem } from '../../state/systemSelectors';
 import { useSystemStore } from '../../state/system';
@@ -13,31 +13,60 @@ const PRESET_OPTIONS: readonly SegmentedOption<PresetId>[] = [
 
 type Mult = 'satu' | 'bali' | 'indonesia' | 'nonbintang' | 'bebas';
 
-/** Hotel preset (drives the whole section) and the N-hotels multiplier. */
+/**
+ * Hotel preset (drives the whole section). The recompute is heavy, so the click first paints a pending state
+ * ("Menghitung ulang…"), then applies ONE store update; the results themselves render through the deferred view.
+ */
 export function PresetSwitch() {
   const sys = useSystem();
+  const deferred = useDeferredValue(sys);
   const preset = useSystemStore((s) => s.hotelPreset);
-  const setHotelPreset = useSystemStore((s) => s.setHotelPreset);
-  const setSys = useSystemStore((s) => s.setSys);
+  const [asked, setAsked] = useState<PresetId | null>(null);
+  const applied = useRef(false);
+  const stale = deferred !== sys;
   const areaM2 = sys.array.modules * sys.array.module.areaM2;
+
+  useEffect(() => {
+    if (asked && applied.current && !stale) {
+      setAsked(null);
+      applied.current = false;
+    }
+  }, [asked, stale]);
+
   const choose = (id: PresetId) => {
-    const z = sizingFor(id, sys.array.module.areaM2);
-    setHotelPreset(id);
-    setSys({ array: { modules: z.modules }, tank: { volumeL: z.volumeL, uaWPerK: z.uaWPerK } });
+    if (id === preset || asked) return;
+    setAsked(id);
+    applied.current = false;
+    window.setTimeout(() => {
+      const cur = useSystemStore.getState().sys;
+      const z = sizingFor(id, cur.array.module.areaM2);
+      useSystemStore.setState({
+        sys: { ...cur, hotel: { ...HOTEL_PRESETS[id] }, array: { ...cur.array, modules: z.modules }, tank: { ...cur.tank, volumeL: z.volumeL, uaWPerK: z.uaWPerK } },
+        hotelPreset: id,
+      });
+      applied.current = true;
+    }, 40);
   };
+  const shown: PresetId | null = asked ?? (preset === 'custom' ? null : preset);
   return (
     <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
       <SegmentedControl<PresetId>
         ariaLabel="Hotel yang dihitung"
         options={PRESET_OPTIONS}
-        value={preset === 'custom' ? 'hotel-100' : preset}
-        noSelection={preset === 'custom'}
+        value={shown ?? 'hotel-100'}
+        noSelection={shown === null}
         onChange={choose}
         size="sm"
       />
-      <p className="num m-0 text-mono-label text-ink-3">
-        {formatId(sys.hotel.rooms, 0)} kamar · {formatId(areaM2, 0)} m² PV/T · tangki {formatId(sys.tank.volumeL, 0)} L · pemanas cadangan{' '}
-        {sys.hotel.heater === 'lpg' ? 'LPG' : sys.hotel.heater === 'electric-resistance' ? 'listrik' : 'pompa kalor'}
+      <p className="num m-0 text-mono-label text-ink-3" role="status" aria-live="polite">
+        {asked || stale ? (
+          'Menghitung ulang…'
+        ) : (
+          <>
+            {formatId(sys.hotel.rooms, 0)} kamar · {formatId(areaM2, 0)} m² PV/T · tangki {formatId(sys.tank.volumeL, 0)} L · pemanas cadangan{' '}
+            {sys.hotel.heater === 'lpg' ? 'LPG' : sys.hotel.heater === 'electric-resistance' ? 'listrik' : 'pompa kalor'}
+          </>
+        )}
       </p>
     </div>
   );
@@ -105,13 +134,13 @@ export function HotelScaler({ data }: { data: BaselineComparison }) {
       </div>
       <dl className="m-0 grid gap-x-10 gap-y-6 sm:grid-cols-2">
         <div className="border-t border-line pt-3">
-          <dt className="text-body text-ink-2">CO₂e bersih vs B1 (konvensional)</dt>
+          <dt className="text-body text-ink-2">CO₂e bersih terhadap B1 (konvensional)</dt>
           <dd className="num m-0 mt-1 text-readout-l text-ink">
             {sgn(b1)} <span className="text-mono-s text-ink-3">{unit} CO₂e/tahun</span>
           </dd>
         </div>
         <div className="border-t border-line pt-3">
-          <dt className="text-body text-ink-2">CO₂e bersih vs B2 (PV + pompa kalor)</dt>
+          <dt className="text-body text-ink-2">CO₂e bersih terhadap B2 (PV + pompa kalor)</dt>
           <dd className="num m-0 mt-1 text-readout-l text-ink">
             {sgn(b2)} <span className="text-mono-s text-ink-3">{unit} CO₂e/tahun</span>
           </dd>

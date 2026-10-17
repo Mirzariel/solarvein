@@ -1,17 +1,19 @@
 import { Subs } from '../../charts/impact/Waterfall';
-import { typo } from '../../ui';
-import { splitVerdict } from './format';
+import { formatWithUnit } from '../../ui';
+import { glossary, nbsp, splitVerdict } from './format';
 
 /**
- * The generated verdict sentence, word for word (only typography: non-breaking spaces before units).
- * The B2 clause and its cost counter-clause lead; B1, B3, B4 and the desiccant note follow in a quieter size.
+ * The generated verdict, kept whole inside the "Ringkasan per pembanding" disclosure. Only typography and the
+ * glossary change ("~" → "sekitar", "kalor surya" → "panas surya", non-breaking spaces before units); the
+ * B4 break-even sentence is drawn as a scale (B4Breakeven) instead of repeated as text.
  */
 export function Verdict({ text }: { text: string }) {
   const { primary, rest } = splitVerdict(text);
+  const t = (s: string) => <Subs text={nbsp(glossary(s))} />;
   return (
-    <div data-verdict className="max-w-[72ch]">
-      <p className="m-0 text-lead text-ink"><Subs text={typo(primary)} /></p>
-      {rest ? <p className="m-0 mt-5 text-body text-ink-2"><Subs text={typo(rest)} /></p> : null}
+    <div data-verdict className="max-w-[64ch] space-y-4">
+      <p className="m-0 text-body text-ink">{t(primary)}</p>
+      {rest ? <p className="m-0 text-body text-ink-2">{t(rest)}</p> : null}
     </div>
   );
 }
@@ -20,15 +22,13 @@ export function Verdict({ text }: { text: string }) {
 export function B4Breakeven({ breakEven, assumed }: { breakEven: number | null | undefined; assumed: number }) {
   const pct = (x: number) => `${Math.min(1, Math.max(0, x)) * 100}%`;
   return (
-    <div className="max-w-[40rem]">
+    <div className="mt-6 max-w-[40rem]">
       <p className="m-0 text-body text-ink">
         Titik impas B4:{' '}
-        <span className="num">
-          {breakEven == null ? 'tidak ada' : `${Math.round(breakEven * 100)}%`}
-        </span>{' '}
+        <span className="num">{breakEven == null ? 'tidak ada' : formatWithUnit(breakEven * 100, '%', 0)}</span>{' '}
         <span className="text-ink-2">
-          kebutuhan air panas ditutup pemulihan kondensor{breakEven == null ? ' pada 0–100%' : ''}; asumsi saat ini{' '}
-          <span className="num">{Math.round(assumed * 100)}%</span>.
+          kebutuhan air panas ditutup pemulihan kondensor{breakEven == null ? ' pada 0–100 %' : ''}; asumsi saat ini{' '}
+          <span className="num">{formatWithUnit(assumed * 100, '%', 0)}</span>.
         </span>
       </p>
       <div className="relative mt-5 h-8" aria-hidden="true">

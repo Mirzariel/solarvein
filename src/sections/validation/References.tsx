@@ -47,7 +47,7 @@ export function References() {
     <div id="pustaka" className="scroll-mt-20">
       <Disclosure
         title="Pustaka"
-        hint={`${formatId(verified.length + secondary.length, 0)} sumber, format APA 7`}
+        hint="APA 7"
         level={3}
         open={open}
         onOpenChange={setOpen}
