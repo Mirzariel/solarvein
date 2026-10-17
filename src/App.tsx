@@ -19,6 +19,7 @@ const loadInside = () => import('./sections/Inside');
 const loadInterlude = () => import('./sections/Interlude');
 const loadRouter = () => import('./sections/RouterSection');
 const loadDay = () => import('./sections/DayAtHotel');
+const loadHumid = () => import('./sections/InterludeHumid');
 const loadDesiccant = () => import('./sections/Desiccant');
 const loadImpact = () => import('./sections/Impact');
 const loadLab = () => import('./sections/Lab');
@@ -27,11 +28,12 @@ const Inside = lazy(loadInside);
 const Interlude = lazy(loadInterlude);
 const RouterSection = lazy(loadRouter);
 const DayAtHotel = lazy(loadDay);
+const InterludeHumid = lazy(loadHumid);
 const Desiccant = lazy(loadDesiccant);
 const Impact = lazy(loadImpact);
 const Lab = lazy(loadLab);
 const Validation = lazy(loadValidation);
-const PRELOAD = [loadInside, loadInterlude, loadRouter, loadDay, loadDesiccant, loadImpact, loadLab, loadValidation];
+const PRELOAD = [loadInside, loadInterlude, loadRouter, loadDay, loadHumid, loadDesiccant, loadImpact, loadLab, loadValidation];
 
 /** Holds height while a chunk loads; carries the section id so anchor links never break. */
 function SectionFallback({ id, label, minH }: { id: string; label: string; minH: string }) {
@@ -97,6 +99,9 @@ export default function App() {
         </Lazy>
         <Lazy id="sehari" minH="90svh">
           <DayAtHotel />
+        </Lazy>
+        <Lazy id="jeda-lembap" minH="60svh">
+          <InterludeHumid />
         </Lazy>
         <Lazy id="desikan" minH="80svh">
           <Desiccant />
