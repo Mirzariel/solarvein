@@ -50,7 +50,7 @@ export default function Masalah() {
           </div>
 
           <figure className="m-0 lg:col-span-5">
-            <div data-masalah-photo className="relative aspect-[4/3] overflow-hidden rounded-[16px] lg:aspect-[5/4] lg:rounded-[20px]">
+            <div data-masalah-photo className="relative aspect-[4/3] overflow-hidden rounded-[16px] lg:aspect-[3/2] lg:rounded-[20px]">
               <Picture fill name="roof-aisle" alt={MASALAH.picture.alt} position="50% 50%" sizes="(min-width: 1024px) 40vw, 100vw" maxWidth={1280} />
             </div>
             <figcaption className="mt-3 text-small text-ink-3">{MASALAH.picture.caption}</figcaption>

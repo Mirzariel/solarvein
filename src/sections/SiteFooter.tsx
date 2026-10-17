@@ -27,7 +27,7 @@ export default function SiteFooter() {
             <ul className="m-0 list-none space-y-1 p-0">
               {LINKS.map((l) => (
                 <li key={l.href}>
-                  <a href={l.href} className="inline-flex min-h-9 items-center text-body text-stage-ink-2 transition-colors duration-[200ms] hover:text-white">
+                  <a href={l.href} className="inline-flex min-h-9 pointer-coarse:min-h-11 items-center text-body text-stage-ink-2 transition-colors duration-[200ms] hover:text-white">
                     {l.label}
                   </a>
                 </li>
@@ -36,12 +36,12 @@ export default function SiteFooter() {
           </nav>
           <ul className="m-0 list-none space-y-1 p-0 md:col-span-3">
             <li>
-              <a href="#lab" className="inline-flex min-h-9 items-center text-body text-stage-ink-2 transition-colors duration-[200ms] hover:text-white">
+              <a href="#lab" className="inline-flex min-h-9 pointer-coarse:min-h-11 items-center text-body text-stage-ink-2 transition-colors duration-[200ms] hover:text-white">
                 Lab
               </a>
             </li>
             <li>
-              <a href="#pustaka" className="inline-flex min-h-9 items-center text-body text-stage-ink-2 transition-colors duration-[200ms] hover:text-white">
+              <a href="#pustaka" className="inline-flex min-h-9 pointer-coarse:min-h-11 items-center text-body text-stage-ink-2 transition-colors duration-[200ms] hover:text-white">
                 Daftar pustaka
               </a>
             </li>
@@ -51,7 +51,7 @@ export default function SiteFooter() {
                 aria-expanded={open}
                 aria-controls="kredit-media"
                 onClick={() => setOpen((v) => !v)}
-                className="inline-flex min-h-9 items-center text-body text-stage-ink-2 transition-colors duration-[200ms] hover:text-white"
+                className="inline-flex min-h-9 pointer-coarse:min-h-11 items-center text-body text-stage-ink-2 transition-colors duration-[200ms] hover:text-white"
               >
                 Kredit foto & video
               </button>

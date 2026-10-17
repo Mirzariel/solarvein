@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { SIM_BADGE } from '../sim/system';
 import { ButtonLink, EvidenceDot, Logo, cx } from '../ui';
-import { scrollToTarget } from '../motion';
-import { SECTIONS, resolveHash } from './nav';
+import { getLenis } from '../motion';
+import { SECTION, SECTIONS, resolveHash } from './nav';
 
 /**
  * Header: transparan di atas foto pembuka (#awal), lalu kertas padat setelah gulir (transisi halus).
  * Tautan dan urutannya dari nav.ts (SECTIONS dengan nav: true); tombol Lab di kanan; lencana "Simulasi · belum ada data ukur"
  * selalu terlihat (lengkap di layar lebar, ringkas di layar sempit). Garis bawah geser mengikuti bagian aktif.
- * Scroll-spy memakai posisi (bukan IntersectionObserver) agar bagian yang dimuat malas tetap terdeteksi; bagian tanpa
+ * Scroll-spy membaca posisi elemen yang disimpan (tanpa hit-testing) dan menyegarkan daftarnya saat dokumen bertambah; bagian tanpa
  * tautan: Di dalam kolektor menyorot Sistem; Jeda, Desikan dan Penutup tidak menyorot apa pun (bukan bagian dari tautan
  * mana pun); Lab menyorot tombol Lab. Di atas bagian gelap, header memakai warna gelap yang tenang.
  */
@@ -16,17 +16,57 @@ const NAV = SECTIONS.filter((s) => s.nav);
 
 const HEADER_H = 56;
 
-/** Active nav id for the section order: the last section whose top passed the reading line. */
-function readActive(vh: number): string {
-  let cur = '';
+/** Lazy section chunks in page order (the same modules App.tsx lazy-loads; the module cache dedupes). */
+const LOADERS = [
+  () => import('./Inside'),
+  () => import('./Interlude'),
+  () => import('./RouterSection'),
+  () => import('./DayAtHotel'),
+  () => import('./InterludeHumid'),
+  () => import('./Desiccant'),
+  () => import('./Impact'),
+  () => import('./Validation'),
+  () => import('./Lab'),
+];
+
+/** Any of these means the visitor is driving: the cold-load deep-link correction stands down. */
+const TAKEOVER = ['wheel', 'touchstart', 'keydown', 'pointerdown'] as const;
+
+interface SpyCache {
+  sections: { id: string; el: HTMLElement }[];
+  dark: HTMLElement[];
+}
+
+/** Section and dark-band elements, looked up once and refreshed only when the document grows (lazy chunks mounting). */
+function buildCache(): SpyCache {
+  const sections: SpyCache['sections'] = [];
   for (const s of SECTIONS) {
     const el = document.getElementById(s.id);
-    if (!el || el.getBoundingClientRect().top > vh * 0.38) continue;
-    if (s.nav || s.id === 'lab') cur = s.id;
-    else if (s.id === 'sistem-dalam') cur = 'sistem';
+    if (el) sections.push({ id: s.id, el });
+  }
+  return { sections, dark: Array.from(document.querySelectorAll<HTMLElement>('section.bg-stage-0, footer.bg-stage-0, [data-dark-band]')) };
+}
+
+/** Active nav id: the last section whose top passed the reading line (rects of cached elements only, no hit-testing). */
+function readActive(c: SpyCache, vh: number): string {
+  let cur = '';
+  for (const { id, el } of c.sections) {
+    if (el.getBoundingClientRect().top > vh * 0.38) continue;
+    const def = SECTION[id];
+    if (def?.nav || id === 'lab') cur = id;
+    else if (id === 'sistem-dalam') cur = 'sistem';
     else cur = '';
   }
   return cur;
+}
+
+/** A dark chapter is directly under the bar. */
+function readDark(c: SpyCache): boolean {
+  const y = HEADER_H + 4;
+  return c.dark.some((el) => {
+    const r = el.getBoundingClientRect();
+    return r.top <= y && r.bottom > y;
+  });
 }
 
 /** Permanent badge: every number on the site is simulated. Dot shape = simulation (half-filled). */
@@ -58,17 +98,17 @@ export default function SiteHeader() {
   // Scroll-spy + "over the photo" detection, throttled with rAF.
   useEffect(() => {
     let raf = 0;
+    let cache = buildCache();
     const read = () => {
       raf = 0;
       const vh = window.innerHeight;
-      setActive(readActive(vh));
+      setActive(readActive(cache, vh));
       const opening = document.getElementById('awal');
       // Transparan hanya di puncak halaman (scrollY ≤ 64) selama foto pembuka ada; lalu kertas padat.
       setOverPhoto(opening ? window.scrollY <= 64 && opening.getBoundingClientRect().bottom > HEADER_H : false);
       setScrolled(window.scrollY > 8);
-      // what is directly under the bar: a dark chapter (Di dalam, Jeda, footer, dark beats) gets a quiet dark tint
-      const under = document.elementFromPoint(window.innerWidth / 2, HEADER_H + 4);
-      setDark(Boolean(under?.closest('section.bg-stage-0, footer.bg-stage-0, [data-dark-band]')));
+      // a dark chapter under the bar (Di dalam, Jeda, footer, dark beats) gets a quiet dark tint
+      setDark(readDark(cache));
     };
     const onScroll = () => {
       if (!raf) raf = requestAnimationFrame(read);
@@ -77,7 +117,13 @@ export default function SiteHeader() {
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onScroll);
     // Lazy sections appear after first paint: re-read when the document grows.
-    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(onScroll) : null;
+    const ro =
+      typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(() => {
+            cache = buildCache();
+            onScroll();
+          })
+        : null;
     ro?.observe(document.body);
     return () => {
       window.removeEventListener('scroll', onScroll);
@@ -87,23 +133,75 @@ export default function SiteHeader() {
     };
   }, []);
 
-  // Old v1 deep links (#pengalaman, #di-dalam, #perbandingan, #lab-rincian) land on their v2 section.
+  // Cold-load deep links (#dampak, #pustaka, old #perbandingan / #lab-rincian ...): lazy sections mount after first paint
+  // and push the layout, so the target is re-scrolled until its position has been stable for ~500 ms (cap 6 s),
+  // or until the visitor takes over by wheel, touch, key or pointer.
   useEffect(() => {
     const raw = decodeURIComponent(window.location.hash.slice(1));
-    const target = resolveHash(raw);
-    if (!raw || target === raw) return;
-    let tries = 0;
-    const id = window.setInterval(() => {
-      const el = document.getElementById(target);
-      if (el || ++tries > 20) {
-        window.clearInterval(id);
-        if (el) {
-          history.replaceState(null, '', '#' + target);
-          scrollToTarget(el, { immediate: true });
+    if (!raw) return;
+    const id = resolveHash(raw);
+    // the visitor asked for a place far down: every chunk is needed now, so load them all at once
+    for (const load of LOADERS) void load().catch(() => {});
+    const t0 = performance.now();
+    let lastKey = '';
+    let stableSince = 0;
+    let done = false;
+    let timer = 0;
+    const stop = () => {
+      done = true;
+      window.clearTimeout(timer);
+      for (const ev of TAKEOVER) window.removeEventListener(ev, stop);
+    };
+    for (const ev of TAKEOVER) window.addEventListener(ev, stop, { passive: true });
+    const tick = () => {
+      if (done) return;
+      const now = performance.now();
+      const el = document.getElementById(id);
+      if (el) {
+        if (id !== raw) history.replaceState(null, '', '#' + id);
+        const offset = id === 'awal' ? 0 : -HEADER_H;
+        const want = Math.max(0, el.getBoundingClientRect().top + window.scrollY + offset);
+        const key = `${Math.round(want)}|${document.documentElement.scrollHeight}`;
+        if (key !== lastKey || Math.abs(window.scrollY - want) > 2) {
+          lastKey = key;
+          stableSince = now;
+          // absolute, immediate jump: Lenis' own element maths can lag behind a layout that is still moving
+          const lenis = getLenis();
+          if (lenis) lenis.scrollTo(want, { immediate: true, force: true });
+          else window.scrollTo(0, want);
+        } else if (now - stableSince >= 500 && !document.querySelector('[aria-busy="true"]')) {
+          stop();
+          return;
         }
       }
-    }, 250);
-    return () => window.clearInterval(id);
+      if (now - t0 > 6000) {
+        stop();
+        return;
+      }
+      timer = window.setTimeout(tick, 100);
+    };
+    timer = window.setTimeout(tick, 0);
+    return stop;
+  }, []);
+
+  // Staged warm-up of the lazy section chunks: one per idle slice (never all at once), starting right after first
+  // paint, so the first scroll into Masalah/Sistem does not queue behind a burst of module evaluation.
+  useEffect(() => {
+    const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void };
+    let i = 0;
+    let t = 0;
+    const next = () => {
+      const load = LOADERS[i++];
+      if (!load) return;
+      void load().catch(() => {});
+      t = window.setTimeout(schedule, 250);
+    };
+    const schedule = () => {
+      if (w.requestIdleCallback) w.requestIdleCallback(next, { timeout: 1500 });
+      else next();
+    };
+    t = window.setTimeout(schedule, 900);
+    return () => window.clearTimeout(t);
   }, []);
 
   // Sliding underline under the active desktop link.
