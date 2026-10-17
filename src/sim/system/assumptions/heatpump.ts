@@ -8,7 +8,7 @@ export const HEATPUMP_ASSUMPTIONS: AssumptionEntry[] = [
     body: 'COP = fraksi × T_kondensor / (T_kondensor − T_evaporator) dalam kelvin. Unit kecil berpendingin cairan biasanya mencapai 0,4–0,5 dari Carnot. Dengan 0,45, mengangkat sumber 15 °C ke air 58 °C menghasilkan COP sekitar 3,1.',
     value: '0,45 (rentang 0,40–0,50)',
     tag: 'asumsi',
-    refId: 'hp-carnot-fraction', // TODO(R0)
+     // TODO(R0)
   },
   {
     id: 'hp-pendekatan-hx',

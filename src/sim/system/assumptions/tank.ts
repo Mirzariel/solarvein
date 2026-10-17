@@ -8,7 +8,7 @@ export const TANK_ASSUMPTIONS: AssumptionEntry[] = [
     body: 'Tangki menyimpan fluida loop kolektor (air atau campuran glikol), bukan air minum. Air minum tidak pernah disimpan pada 25–45 °C; panasnya dipindahkan lewat penukar panas eksternal hanya saat ada pemakaian, lalu pemanas yang ada menaikkan sisanya sampai 60 °C atau lebih.',
     value: 'Loop tertutup + HX eksternal',
     tag: 'mapan',
-    refId: 'who-legionella', // TODO(R0)
+    refId: 'levesque2004-who-60c-summary', // TODO(R0)
   },
   {
     id: 'tangki-dua-simpul',
@@ -22,7 +22,7 @@ export const TANK_ASSUMPTIONS: AssumptionEntry[] = [
     body: 'Volume 50–75 L per m² kolektor adalah rentang praktik umum untuk penyangga prapemanas; nilai bawaan 60 L/m². Makin besar tangki, makin besar rugi diam sehingga manfaatnya menurun.',
     value: '60 L/m² (rentang 50–75)',
     tag: 'asumsi',
-    refId: 'tank-sizing-rule', // TODO(R0): pedoman ukuran tangki surya skala besar
+     // TODO(R0): pedoman ukuran tangki surya skala besar
   },
   {
     id: 'tangki-ua',

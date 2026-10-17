@@ -26,7 +26,7 @@ export function sysFixture(over: { hotel?: Partial<HotelParams>; desiccantOn?: b
     tank: { volumeL: 5000, uaWPerK: 5, maxC: 80, initialTopC: 40, initialBottomC: 30 },
     desiccant: { enabled: over.desiccantOn ?? false } as never,
     controller: { strategy: 'adaptive', onK: 8, offK: 3, desiccantMinRegenC: 55 },
-    carbon: { ...DEFAULT_CARBON_PARAMS },
+    carbon: { ...DEFAULT_CARBON_PARAMS, gridKgPerKWhE: 0.8 }, // formula tests pin EF = 0,8 (defaults may change)
     economics: { ...DEFAULT_ECONOMIC_PARAMS },
     heatPumpSource: { enabled: over.hp ?? false, carnotFraction: 0.45 },
   };

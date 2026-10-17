@@ -29,7 +29,7 @@ export const HOTEL_ASSUMPTIONS: AssumptionEntry[] = [
     body: 'Pemakaian air panas pada titik penggunaan 60 °C diambil di tengah rentang literatur hotel (kira-kira 50–150 L per kamar terisi per hari). Hotel bintang tinggi dengan bak mandi dapat jauh di atasnya.',
     value: '80 L/kamar-terisi/hari pada 60 °C (rentang 50–150)',
     tag: 'asumsi',
-    refId: 'ashrae-swh-hotel', // TODO(R0): ASHRAE Handbook, Service Water Heating, tabel hotel
+    refId: 'cibse-hotel-hot-water', // TODO(R0): ASHRAE Handbook, Service Water Heating, tabel hotel
   },
   {
     id: 'hotel-suhu-set-air-pasok',
@@ -51,7 +51,7 @@ export const HOTEL_ASSUMPTIONS: AssumptionEntry[] = [
     body: 'Laju udara segar mengikuti pola ASHRAE 62.1 untuk kamar tamu (per orang ditambah per luas lantai), sekitar 12–14 L/s per kamar terisi untuk 2 orang di kamar ±30 m². Kamar kosong diasumsikan dikurangi alirannya.',
     value: '1,1 kg/s udara kering (70 kamar terisi × 12–14 L/s)',
     tag: 'asumsi',
-    refId: 'ashrae-62-1', // TODO(R0): ASHRAE Standard 62.1, tabel laju ventilasi
+    refId: 'ashrae621-addendum-z-2018', // TODO(R0): ASHRAE Standard 62.1, tabel laju ventilasi
   },
   {
     id: 'hotel-titik-embun-suplai',
@@ -66,7 +66,7 @@ export const HOTEL_ASSUMPTIONS: AssumptionEntry[] = [
     body: 'Empat tipe hari dibangkitkan secara analitik dan deterministik. Hari hujan bukan nol matahari: cahaya difus 80–400 W/m² selama beberapa jam. Iradiansi harian pada bidang panel: terik ±6,1, berawan ±3,9, hujan ±2,0 kWh/m²/hari; tiga hari hujan beruntun ±1,8, 1,6 dan 2,4 kWh/m²/hari.',
     value: 'GHI terik ≈ 6,1 · berawan ≈ 3,9 · hujan ≈ 2,0 kWh/m²/hari',
     tag: 'asumsi',
-    refId: 'nasa-power-pvgis', // TODO(R0): bandingkan dengan NASA POWER / PVGIS untuk satu kota bernama
+    refId: 'nasa-power-denpasar', // TODO(R0): bandingkan dengan NASA POWER / PVGIS untuk satu kota bernama
   },
   {
     id: 'hotel-profil-penarikan',
@@ -81,14 +81,6 @@ export const HOTEL_ASSUMPTIONS: AssumptionEntry[] = [
     body: 'Kebutuhan 206 kWh_th/hari. Larik 50 modul × 1,7 m² = 85 m². Pada suhu masuk ±38 °C, simulasi memberi ±195 (terik), ±82 (berawan) dan ±3 (hujan) kWh_th/hari. Dengan bobot ilustrasi 140/130/95 hari, rata-ratanya ±105 kWh_th/hari; setelah rugi tangki dan pemanfaatan sebagian, cakupan tahunan sekitar 35–50 %.',
     value: '85 m² (50 modul) · 5.100 L tangki (60 L/m²) · cakupan sasaran 30–60 %',
     tag: 'simulasi',
-  },
-  {
-    id: 'hotel-karbon-sementara',
-    title: 'Parameter karbon sementara',
-    body: 'Faktor emisi jaringan 0,8 kgCO₂e/kWh_e, LPG 0,227 kgCO₂e/kWh_bahan bakar (IPCC 63,1 t/TJ), COP pemanas air pompa kalor 3,5, koil acuan 3,0, after-cooler 4,5. Emisi tertanam dan masa pakai 20 tahun adalah placeholder; W4 akan menggantinya dengan nilai bersumber.',
-    value: '0,8 kgCO₂e/kWh_e · 0,227 kgCO₂e/kWh_bb · COP 3,5 / 3,0 / 4,5',
-    tag: 'asumsi',
-    refId: 'esdm-ef-grid', // TODO(R0): faktor emisi jaringan ESDM/DJK dan IPCC 2006 (LPG)
   },
   {
     id: 'hotel-ekonomi-sementara',

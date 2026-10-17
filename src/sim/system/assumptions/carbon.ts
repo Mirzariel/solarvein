@@ -1,18 +1,18 @@
 /**
  * Asumsi karbon SolarVein v2 (modul `carbon.ts`). Semua dapat diubah pengguna lewat CarbonParams.
- * Angka bertanda TODO(R0) menunggu sumber terbit dari tim referensi (R0); refId di bawah masih penampung.
+ * refId merujuk ke src/sim/references.ts (R0). Nilai tanpa sumber terverifikasi ditandai asumsi.
  */
 import type { AssumptionEntry, CarbonParams } from '../contract';
 
-/** Penampung refId — diganti dengan id `src/sim/references.ts` setelah R0 digabung. */
+/** Rujukan per asumsi (id di src/sim/references.ts). undefined = belum ada sumber terverifikasi (asumsi). */
 export const CARBON_REF = {
-  gridEf: 'esdm-grid-ef', // TODO(R0): faktor emisi grid ESDM/DJK terbaru (tahun & wilayah)
-  lpg: 'ipcc2006-lpg', // TODO(R0): IPCC 2006 Vol.2 Tabel 1.4 (63,1 t/TJ NCV)
-  pvEmbodied: 'pv-embodied', // TODO(R0): LCA modul PV (mis. IEA PVPS Task 12)
-  pvtEmbodied: 'pvt-embodied', // TODO(R0): LCA kolektor PV/T cair
-  hpwhCop: 'hpwh-cop', // TODO(R0): COP pemanas air pompa kalor tropis
-  bosEmbodied: 'bos-embodied', // TODO(R0)
-  condenser: 'ac-condenser-recovery', // TODO(R0)
+  gridEf: 'jcm-id-ef-2022', // Jamali 0,87 tCO₂/MWh (ESDM 2019 via JCM FY2022, sekunder)
+  lpg: 'ipcc2006-v2c1-ncv-ef', // 63.100 kg/TJ, NCV 47,3 MJ/kg → 0,227 kg/kWh_fuel
+  pvEmbodied: 'iea-pvps-t12-2023', // ±35,8 g/kWh → ±1.050 kg/kWp
+  pvtEmbodied: 'zagorulko2024-pvt-lca', // LCA PV/T (sekunder; nilai per m² tetap asumsi)
+  hpwhCop: 'lam-chan-2003-hotel-hp', // terukur 1,5–2,4 (HK, lama); simulasi Singapura 4–9 → bawaan 3,5 asumsi
+  bosEmbodied: undefined, // belum ada sumber terverifikasi (asumsi)
+  condenser: 'suamir2015-hp-heat-recovery', // hotel bintang 5 Bali: −36,7 % energi pendinginan + air panas
 } as const;
 
 /** Daya puncak PV per luas modul [kWp/m²]. Asumsi eksplisit: modul silikon ±200 W/m² (efisiensi ±20 %). */
@@ -35,7 +35,7 @@ export const HPWH_COP_DEFAULT = 3.5;
 export const NEAR_ZERO_KG_PER_YEAR = 25;
 
 export const DEFAULT_CARBON_PARAMS: CarbonParams = {
-  gridKgPerKWhE: 0.8,
+  gridKgPerKWhE: 0.87, // Jamali (Bali), sensitivitas 0,68 (rerata nasional 2024, OWID) – 0,87
   lpgKgPerKWhFuel: 0.227,
   hpwhCop: 3.5,
   coilRefCop: 3.0,
@@ -58,8 +58,8 @@ export const CARBON_ASSUMPTIONS: AssumptionEntry[] = [
   {
     id: 'carbon-grid-ef',
     title: 'Faktor emisi listrik jaringan',
-    body: 'Dipakai untuk semua listrik yang dibeli atau dihindari. Tidak ada faktor emisi per jam untuk Indonesia, jadi nilainya sama sepanjang hari. Angka tahun dan wilayah menunggu verifikasi R0.',
-    value: '0,8 kgCO₂e/kWh_e (rentang 0,7–0,9)',
+    body: 'Dipakai untuk semua listrik yang dibeli atau dihindari. Tidak ada faktor emisi per jam untuk Indonesia, jadi nilainya sama sepanjang hari. Nilai sistem Jamali (Jawa-Madura-Bali) dari ESDM 2019, dikutip tabel JCM 2022 (sumber sekunder; dokumen ESDM asli belum dapat diunduh). Rerata nasional 2024 sekitar 0,68 dipakai sebagai batas bawah sensitivitas.',
+    value: '0,87 kgCO₂e/kWh_e (sensitivitas 0,68–0,87)',
     tag: 'terbit',
     refId: CARBON_REF.gridEf,
   },
