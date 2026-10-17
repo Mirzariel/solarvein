@@ -19,7 +19,7 @@ function CardStats() {
       <div>
         <dt className="text-small text-white/70">{OPENING.stats.fraction}</dt>
         <dd className="num m-0 flex items-baseline gap-2 text-readout-l text-stage-heat">
-          {formatId(fraction, 0)}%
+          {formatId(fraction, 0)} %
           <Evidence tag="simulasi" inverse className="self-center" />
         </dd>
       </div>
@@ -64,7 +64,7 @@ export default function Opening() {
         scrollTrigger: { trigger: root.current, start: 'top top', end: () => `+=${Math.max(200, card.offsetTop - window.innerHeight * 0.08)}`, scrub: 0.6, invalidateOnRefresh: true },
       },
     );
-    gsap.fromTo(media, { yPercent: -6, scale: 1.12 }, { yPercent: 6, scale: 1, ease: 'none', scrollTrigger: { trigger: card, start: 'top bottom', end: 'bottom top', scrub: true } });
+    gsap.fromTo(media, { yPercent: -6, scale: 1.16 }, { yPercent: 6, scale: 1.13, ease: 'none', scrollTrigger: { trigger: card, start: 'top bottom', end: 'bottom top', scrub: true } });
     gsap.to('[data-head]', { y: desktop ? -80 : -40, autoAlpha: 0.15, ease: 'none', scrollTrigger: { trigger: root.current, start: 'top top', end: () => `+=${Math.max(200, card.offsetTop)}`, scrub: true, invalidateOnRefresh: true } });
     gsap.fromTo(
       '[data-card-note]',
@@ -74,7 +74,7 @@ export default function Opening() {
   });
 
   return (
-    <section ref={root} id="awal" aria-labelledby="awal-judul" className="daylight relative isolate overflow-clip pb-16 pt-28 sm:pt-36 lg:pb-24 lg:pt-40">
+    <section ref={root} id="awal" aria-labelledby="awal-judul" className="daylight relative isolate overflow-clip pb-0 pt-28 sm:pt-36 lg:pt-40">
       <div data-head className="page-wrap">
         <h1 id="awal-judul" className="text-display-xl text-ink">
           <span className="block overflow-hidden pb-[0.2em] -mb-[0.2em]">

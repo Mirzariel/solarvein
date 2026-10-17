@@ -1,6 +1,7 @@
 import { SISTEM_DALAM } from '../../content/sistem';
 import { PARTS, type PartId, type PartValue } from '../../viz3d/parts';
 import type { StageStore } from '../../viz3d/stage';
+import { UnitText } from './UnitText';
 
 /**
  * Mobile / no-WebGL companion of the stage annotations: four plain text buttons (no pills) in a two-column grid,
@@ -35,7 +36,7 @@ export function PartList({ store, focus, valueOf }: { store: StageStore; focus: 
           <>
             <p className="max-w-[48ch] text-body text-ink-2">{sel.sentence}</p>
             <p className="mono mt-1 text-mono-s text-ink-2">
-              {v.symbol} <span className="font-medium text-ink">{v.value}</span> {v.unit}
+              {v.symbol} <span className="font-medium text-ink">{v.value}</span> <UnitText unit={v.unit} />
             </p>
           </>
         ) : (

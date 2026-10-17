@@ -10,6 +10,6 @@ export const OPENING = {
   cardCaption: 'Hotel 100 kamar (ilustrasi) · hasil simulasi · video ilustrasi, bukan dokumentasi proyek',
   stats: {
     fraction: 'Air panas dari surya, setahun',
-    netCo2: 'CO₂e bersih dihindari vs B2',
+    netCo2: 'CO₂e bersih dihindari dibanding PV + pompa kalor (B2)',
   },
 } as const;

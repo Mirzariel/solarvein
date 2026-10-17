@@ -1,6 +1,7 @@
 /** Closing (#penutup) copy. */
 export const CLOSING = {
   title: ['Atap yang sama.', 'Panas yang dipakai.'] as const,
+  theme: 'Mengisi daya masa depan: listrik dan panas dari atap yang sama, untuk hotel besar maupun penginapan kecil.',
   honest: 'SolarVein masih simulasi tanpa data ukur, dibuat supaya idenya bisa diuji, dihitung, dan dibantah.',
   ctaPrimary: { label: 'Kembali ke sistem', href: '#sistem' },
   ctaSecondary: { label: 'Baca asumsi dan batasnya', href: '#validasi' },

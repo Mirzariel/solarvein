@@ -18,8 +18,9 @@ export interface MasalahLoad {
 
 export const MASALAH = {
   index: { n: '01', label: 'Masalah' },
-  title: 'Dua beban hotel tropis: air panas, udara lembap.',
-  lead: 'Panas atap terbuang, padahal hotel membeli panas untuk air.',
+  title: 'Dua beban hotel tropis.',
+  lead: 'Panas atap terbuang; hotel membeli panas untuk air.',
+  inclusive: 'Berlaku sama untuk hotel besar maupun penginapan kecil.',
   loads: [
     {
       id: 'air-panas',
@@ -32,15 +33,15 @@ export const MASALAH = {
     },
     {
       id: 'udara-lembap',
-      name: 'Udara segar lembap',
-      sentence: 'Pendingin ruangan mengeringkan udara luar yang lembap.',
+      name: 'Udara luar lembap',
+      sentence: 'AC juga menanggung udara luar yang lembap.',
       stat: '48,5–71,3',
       statUnit: '%',
-      statCaption: 'listrik hotel untuk pendingin ruangan (profil ESDM 2000; audit satu hotel di Semarang)',
+      statCaption: 'bagian listrik hotel untuk AC (profil ESDM 2000; audit satu hotel di Semarang)',
       refId: 'ariwibowo2011-hotel-audit',
     },
   ] satisfies MasalahLoad[],
-  statement: 'Angka di bagian ini berasal dari publikasi, bukan simulasi.',
+  statement: 'Angka di bagian ini dari publikasi, bukan simulasi.',
   picture: {
     alt: 'Ilustrasi konteks: deretan panel surya di atap datar.',
     caption: 'Ilustrasi, bukan dokumentasi proyek',
