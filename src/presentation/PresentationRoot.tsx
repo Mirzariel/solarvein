@@ -5,6 +5,12 @@ import { applyUrlPreset } from './applyPreset';
 import {
   applyScene,
   cancelJump,
+  captureCondition,
+  releaseHold,
+  restoreIntended,
+  trackCondition,
+  clearHash,
+  leaveRainView,
   jumpToSection,
   openLabRincian,
   resetDemo,
@@ -19,6 +25,11 @@ import { SCENES, cursorFromTops, stepCursor } from './scenes';
 import './presentasi.css';
 
 const HINTS_AUTO_HIDE_MS = 9000;
+/**
+ * After a key action the scene state is authoritative: the scroll position is not used to re-derive it (a mode change
+ * shifts the layout by a few px and would pick a neighbouring scene) until the presenter scrolls by hand.
+ */
+const LOCK_KEY = Number.POSITIVE_INFINITY;
 
 function PresentationController({ onExit }: { onExit: () => void }) {
   const [cursor, setCursor] = useState(-1);
@@ -37,8 +48,10 @@ function PresentationController({ onExit }: { onExit: () => void }) {
       const scene = SCENES[i];
       if (!scene) return;
       commit(i);
+      restoreIntended();
       applyScene(scene);
-      lockUntil.current = performance.now() + 2200;
+      if (scene.id !== 'lab') clearHash();
+      lockUntil.current = LOCK_KEY;
       jumpToSection(scene.id);
     },
     [commit],
@@ -46,17 +59,23 @@ function PresentationController({ onExit }: { onExit: () => void }) {
 
   const goTop = useCallback(() => {
     commit(-1);
-    const st = useSystemStore.getState();
-    if (st.dayView === '72h') {
-      st.setDayView('24h');
-      st.setModeTarget('A');
-    }
-    lockUntil.current = performance.now() + 2200;
+    restoreIntended();
+    leaveRainView();
+    clearHash();
+    lockUntil.current = LOCK_KEY;
     jumpToSection('awal');
+  }, [commit]);
+
+  /** A condition key in the 3-day rain backup leaves the 72 h view, so the counter moves to the Sehari scene it now shows. */
+  const leaveRainScene = useCallback(() => {
+    if (!SCENES[cursorRef.current]?.rain3) return;
+    const i = SCENES.findIndex((s) => s.id === 'sehari' && !s.rain3);
+    if (i >= 0) commit(i);
   }, [commit]);
 
   const run = useCallback(
     (a: PresentationAction) => {
+      releaseHold();
       switch (a.type) {
         case 'step': {
           const next = stepCursor(cursorRef.current, a.delta);
@@ -73,17 +92,24 @@ function PresentationController({ onExit }: { onExit: () => void }) {
           return;
         case 'reset':
           resetDemo();
+          captureCondition();
+          leaveRainScene();
+          lockUntil.current = LOCK_KEY;
           return;
         case 'lab': {
           const i = SCENES.findIndex((s) => s.id === 'lab');
           if (i >= 0) commit(i);
+          restoreIntended();
           applyScene(SCENES[i] ?? SCENES[0]!);
-          lockUntil.current = performance.now() + 2200;
+          lockUntil.current = LOCK_KEY;
           openLabRincian();
           return;
         }
         case 'mode':
           setCondition(a.mode);
+          captureCondition();
+          leaveRainScene();
+          lockUntil.current = LOCK_KEY;
           return;
         case 'hints':
           setHints((h) => !h);
@@ -96,8 +122,11 @@ function PresentationController({ onExit }: { onExit: () => void }) {
           return;
       }
     },
-    [commit, goScene, goTop, onExit],
+    [commit, goScene, goTop, leaveRainScene, onExit],
   );
+
+  // Remember the presenter's condition across jumps (see controller.trackCondition).
+  useEffect(() => trackCondition(), []);
 
   // Smooth wheel off (Lenis may start after this effect).
   useEffect(() => {
@@ -155,6 +184,10 @@ function PresentationController({ onExit }: { onExit: () => void }) {
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('wheel', onUser, { passive: true });
     window.addEventListener('touchstart', onUser, { passive: true });
+    const onScrollKey = (e: KeyboardEvent) => {
+      if (['ArrowUp', 'ArrowDown', 'End'].includes(e.key)) onUser();
+    };
+    window.addEventListener('keydown', onScrollKey);
     const first = window.setTimeout(sync, 500);
     return () => {
       window.clearTimeout(timer);
@@ -162,6 +195,7 @@ function PresentationController({ onExit }: { onExit: () => void }) {
       window.removeEventListener('scroll', onScroll);
       window.removeEventListener('wheel', onUser);
       window.removeEventListener('touchstart', onUser);
+      window.removeEventListener('keydown', onScrollKey);
     };
   }, [commit]);
 
