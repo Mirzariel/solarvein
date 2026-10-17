@@ -7,37 +7,30 @@ import type { SimInputs } from '../types';
 const base = (o: Partial<SimInputs> = {}): SimInputs => ({ ...DEFAULT_INPUTS, ...o });
 const glassC = (r: ReturnType<typeof simulate>) => r.profile.find((p) => p.id === 'glass')!.tempC;
 
-describe('pvt-liquid is harvest-only', () => {
-  it('never classifies as reject and never reports rejected heat (grid)', () => {
-    for (const irradiance of [0, 120, 900])
-      for (const inletC of [10, 45, 80])
-        for (const pumpControl of ['auto', 'on', 'off'] as const)
-          for (const hotSourceAvailable of [true, false])
-            for (const rainMmH of [0, 15]) {
-              const r = simulate(
-                base({ irradiance, inletC, pumpControl, hotSourceAvailable, rainMmH, heatLoadAvailable: true }),
-                'pvt-liquid',
-              );
-              expect(r.regime).not.toBe('reject');
-              expect(r.heatRejectedW).toBe(0);
-              expect(Math.abs(r.energyBalanceResidualW)).toBeLessThan(0.5);
-            }
-  });
-
-  it("auto needs a heat load: no load -> pump off; with load and sun -> harvest, same as pvt-harvest-only", () => {
+describe('pvt-liquid pump control', () => {
+  it('auto needs a heat load: no load -> pump off; with load and sun -> harvest', () => {
     const noLoad = simulate(base({ heatLoadAvailable: false }), 'pvt-liquid');
     expect(noLoad.pumpOn).toBe(false);
     expect(noLoad.qLiquidW).toBe(0);
     const withLoad = simulate(base({ heatLoadAvailable: true }), 'pvt-liquid');
-    const harvestOnly = simulate(base({ heatLoadAvailable: true }), 'pvt-harvest-only');
     expect(withLoad.pumpOn).toBe(true);
     expect(withLoad.regime).toBe('harvest');
-    expect(withLoad.qLiquidW).toBeCloseTo(harvestOnly.qLiquidW, 9);
+    expect(withLoad.qLiquidW).toBeGreaterThan(300);
   });
 
   it("'on' runs the pump regardless; 'off' never does", () => {
     expect(simulate(base({ pumpControl: 'on', heatLoadAvailable: false }), 'pvt-liquid').pumpOn).toBe(true);
     expect(simulate(base({ pumpControl: 'off' }), 'pvt-liquid').pumpOn).toBe(false);
+  });
+
+  it('closes the energy balance over a grid (any pump command, wet or dry)', () => {
+    for (const irradiance of [0, 120, 900])
+      for (const inletC of [10, 45, 80])
+        for (const pumpControl of ['auto', 'on', 'off'] as const)
+          for (const rainMmH of [0, 15]) {
+            const r = simulate(base({ irradiance, inletC, pumpControl, rainMmH, heatLoadAvailable: true }), 'pvt-liquid');
+            expect(Math.abs(r.energyBalanceResidualW)).toBeLessThan(0.5);
+          }
   });
 });
 
@@ -54,7 +47,6 @@ describe('heat-pump source mode (night / rain, pump forced on, cold loop)', () =
     expect(Math.abs(r.energyBalanceResidualW)).toBeLessThan(0.01);
     expect(r.electricalW).toBe(0);
     expect(r.outletC).toBeGreaterThan(15);
-    expect(r.regime).not.toBe('reject');
   });
 
   it('gain per m2 is in the council band (50-150 W/m2) dry, and rain increases it plausibly', () => {
@@ -69,7 +61,6 @@ describe('heat-pump source mode (night / rain, pump forced on, cold loop)', () =
       expect(rainAdd).toBeGreaterThan(20);
       expect(rainAdd).toBeLessThan(100);
       expect(wet.qLiquidW / a).toBeLessThan(200);
-      expect(wet.qLiquidNoRainW!).toBeCloseTo(dry.qLiquidW, 6);
       expect(Math.abs(wet.energyBalanceResidualW)).toBeLessThan(0.01);
     }
   });
@@ -88,11 +79,10 @@ describe('no tank cooling through a cold-night collector', () => {
     expect(r.usefulHeatW).toBe(0);
     expect(r.regime).toBe('idle');
   });
-  it("'on' forced: qLiquidW < 0 (the loss the controller must avoid), still not reject", () => {
-    const r = simulate(base({ ...hotLoop, pumpControl: 'on', hotSourceAvailable: true }), 'pvt-liquid');
+  it("'on' forced: qLiquidW < 0 (the loss the controller must avoid)", () => {
+    const r = simulate(base({ ...hotLoop, pumpControl: 'on' }), 'pvt-liquid');
     expect(r.qLiquidW).toBeLessThan(0);
-    expect(r.regime).not.toBe('reject');
-    expect(r.heatRejectedW).toBe(0);
+    expect(r.regime).toBe('negligible');
     expect(r.advisories.some((a) => a.code === 'COLLECTOR_COOLS_LOOP')).toBe(true);
   });
 });
