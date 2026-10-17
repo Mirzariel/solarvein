@@ -107,8 +107,9 @@ at most 3 gridlines, ticks mono `ink-3`, direct labels. Hover dims others to 35 
 | Tag | Dot |
 |---|---|
 | Established (mapan) | filled |
-| Published (terbit, with citation) | half |
-| Simulation (simulasi), Assumption (asumsi) | hollow (the label text tells them apart) |
+| Published (terbit) | filled + citation marker |
+| Simulation (simulasi) | half |
+| Assumption (asumsi) | hollow |
 | Hypothesis (hipotesis) | dashed hollow |
 | Proposed innovation (usulan) | diamond |
 

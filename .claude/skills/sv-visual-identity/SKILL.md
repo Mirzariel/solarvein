@@ -41,7 +41,7 @@ Retired: cool = heat rejection, rain, cyan arrows, reversed arrows. Heat only fl
 amber tank discharge. ≤ 3 coloured text spans per viewport; chrome (buttons, nav, focus) always neutral. No gradients
 except the liquid ramp; no glow; no lime; no rainbow.
 
-**Evidence dots** (ink-2, shape only, never colour): filled = established · half = published · hollow = simulation /
+**Evidence dots** (ink-2, shape only, never colour): filled = established / published (published adds its citation) · half = simulation · hollow =
 assumption · **dashed hollow = hypothesis** · diamond = proposed innovation. Label text on first use per viewport; legend in
 Validasi. Desiccant status "Hipotesis riset · belum divalidasi" with a dashed dot, no amber/red/warning icon.
 **Dashed means "not yet validated" everywhere**: router path, chart series, hairline. Pins/callouts ≤ 3 per viewport.
