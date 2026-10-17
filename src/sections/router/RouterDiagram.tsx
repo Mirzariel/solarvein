@@ -16,7 +16,7 @@ import { useEffect, useId, useLayoutEffect, useRef, type ReactNode } from 'react
 import { useFrameListener, weather } from '../../motion';
 import { DESICCANT_STATUS } from '../../sim/system';
 import { AFTER, BED, COIL, COL_X, COLLECTOR, DRY, E_Y, HEATPUMP, HX_DHW, HX_REGEN, OUT, PATHS, ROUTER, ROW, TANK, VB, W_TOT } from './layout';
-import { Glider, createPainter, stateFromFrame, type Painter } from './paint';
+import { Glider, createPainter, stateFromFrame, type Painter, type PaintState } from './paint';
 import { PALETTES, type DiagramTone, type Palette } from './palette';
 
 export type LayerId = 'termal' | 'listrik' | 'udara';
@@ -31,6 +31,8 @@ export interface RouterDiagramProps {
   moving: boolean;
   /** Export footer line (paper variant). */
   exportNote?: string;
+  /** Static mode (exports): paint this state once and ignore the engine frame. */
+  staticState?: PaintState;
   className?: string;
 }
 
@@ -76,7 +78,7 @@ function Lyr({ id, on, children }: { id: LayerId; on: boolean; children: ReactNo
   );
 }
 
-export default function RouterDiagram({ layers, tone = 'page', electricalRefW, moving, exportNote, className }: RouterDiagramProps) {
+export default function RouterDiagram({ layers, tone = 'page', electricalRefW, moving, exportNote, staticState, className }: RouterDiagramProps) {
   const P = PALETTES[tone];
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
   const svg = useRef<SVGSVGElement>(null);
@@ -90,7 +92,7 @@ export default function RouterDiagram({ layers, tone = 'page', electricalRefW, m
     if (!svg.current) return;
     painter.current = createPainter(svg.current, P, { electricalRefW });
     painter.current.setLayers(layers);
-    const s0 = stateFromFrame(weather.frame(), glider.current);
+    const s0 = staticState ?? stateFromFrame(weather.frame(), glider.current);
     if (s0) painter.current.paint(s0);
     return () => {
       painter.current?.destroy();
@@ -98,7 +100,7 @@ export default function RouterDiagram({ layers, tone = 'page', electricalRefW, m
     };
     // layers are pushed separately below
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tone, electricalRefW]);
+  }, [tone, electricalRefW, staticState]);
 
   useEffect(() => {
     painter.current?.setLayers(layers);
@@ -111,7 +113,7 @@ export default function RouterDiagram({ layers, tone = 'page', electricalRefW, m
   // one engine frame → direct DOM writes (no React render)
   useFrameListener((f) => {
     const p = painter.current;
-    if (!p) return;
+    if (!p || staticState) return;
     const s = stateFromFrame(f, glider.current);
     if (s) p.paint(s);
   }, 0);

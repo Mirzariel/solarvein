@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import RouterDiagram, { type LayerId } from '../sections/router/RouterDiagram';
-import { targetFromStep } from '../sections/router/useRouterView';
+import { stateFromStep } from '../sections/router/paint';
 import { LABELS, MODE_TARGETS, ROUTER_ASSUMPTIONS, stepAt, type ModeTarget } from '../sim/system';
 import { useDay, useSystem } from '../state/systemSelectors';
 import { formatId } from '../ui';
@@ -16,12 +16,12 @@ function Diagram({ target, width }: { target: ModeTarget; width: number }) {
   const day = useDay(scenario);
   const clear = useDay('terik');
   const sys = useSystem();
-  const view = useMemo(() => targetFromStep(stepAt(day, hour), sys), [day, hour, sys]);
+  const state = useMemo(() => stateFromStep(stepAt(day, hour), sys), [day, hour, sys]);
   const electricalRefW = useMemo(() => Math.max(1, ...clear.steps.map((s) => s.collector.electricalW)), [clear]);
   const note = `${LABELS.modeTarget[target]} · ${hhmm(hour)} · ${formatId(stepAt(day, hour).climate.irradiance, 0)} W/m²`;
   return (
     <div style={{ width }} className="mx-auto">
-      <RouterDiagram view={view} target={view} layers={ALL_LAYERS} tone="paper" electricalRefW={electricalRefW} moving={false} exportNote={note} />
+      <RouterDiagram staticState={state} layers={ALL_LAYERS} tone="paper" electricalRefW={electricalRefW} moving={false} exportNote={note} />
     </div>
   );
 }

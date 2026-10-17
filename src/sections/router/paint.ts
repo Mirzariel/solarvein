@@ -13,7 +13,7 @@
  *    follower so that a preset switch never makes them jump.
  * Nothing is computed here beyond layout: every number is a sim number.
  */
-import { stepAt, getSystemView, type ControllerMode, type RegenAirSource, type RouterReason } from '../../sim/system';
+import { stepAt, getSystemView, routerSnapshot, type ControllerMode, type DayStep, type RegenAirSource, type RouterReason, type SystemInputs } from '../../sim/system';
 import { useSystemStore } from '../../state/system';
 import type { VisualFrame } from '../../motion';
 import { formatId } from '../../ui';
@@ -101,6 +101,42 @@ export function stateFromFrame(f: VisualFrame, glide: Glider): PaintState | null
     regenAir: st.sys.desiccant.regenAir,
     supplyDewPointC: st.sys.hotel.supplyDewPointC,
     hpEnabled: st.sys.heatPumpSource.enabled,
+  };
+}
+
+/** Static paint state straight from a DayStep (exports / static views: no engine frame, no glide). */
+export function stateFromStep(step: DayStep, sys: SystemInputs): PaintState {
+  const r = routerSnapshot(step);
+  const hp = step.heatPump;
+  return {
+    mode: r.mode,
+    pumpOn: r.pumpOn,
+    reason: r.reason,
+    vBypass: r.valves.bypass,
+    vDhw: r.valves.dhw,
+    vTank: r.valves.tank,
+    vDesiccant: r.valves.desiccant,
+    qLiquidW: r.allocW.bypass + r.allocW.dhw + r.allocW.tank + r.allocW.desiccant,
+    soc: r.tankSoc,
+    topC: r.tankTopC,
+    outletC: step.collector.outletC,
+    irradiance: step.climate.irradiance,
+    ambientC: step.climate.ambientC,
+    rh: step.climate.rh,
+    demandW: step.dhw.demandW,
+    directW: step.dhw.fromCollectorW,
+    dischargeW: step.dhw.fromTankW,
+    backupW: step.dhw.backupW,
+    potableOutC: step.dhw.potableOutC ?? step.dhw.tankSourceC ?? step.collector.outletC,
+    electricalW: step.collector.electricalW,
+    desOn: step.desiccant.available && step.desiccant.moistureRemovedKgH > 1e-3 ? 1 : 0,
+    moistureKgH: step.desiccant.moistureRemovedKgH,
+    hpOn: hp?.on ? 1 : 0,
+    hpSourceW: hp?.sourceW ?? 0,
+    hpCop: hp?.cop ?? 0,
+    regenAir: sys.desiccant.regenAir,
+    supplyDewPointC: sys.hotel.supplyDewPointC,
+    hpEnabled: sys.heatPumpSource.enabled,
   };
 }
 
