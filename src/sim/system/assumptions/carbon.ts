@@ -39,7 +39,9 @@ export const DEFAULT_CARBON_PARAMS: CarbonParams = {
   lpgKgPerKWhFuel: 0.227,
   hpwhCop: 3.5,
   coilRefCop: 3.0,
-  aftercoolerCop: 5.0,
+  // Sensible-only after-cooler can run its evaporator ~8–10 K warmer than a dehumidifying coil (~3 %/K)
+  // → COP ratio ≈ 1,3. Optimistic ratios (≥ 1,6) flatter the desiccant; keep conservative (asumsi, council P0-1).
+  aftercoolerCop: 3.9,
   embodiedPvtKgPerM2: 300,
   embodiedPvKgPerKWp: 1000,
   // hotel scale: ~5 m³ insulated steel buffer tank + HX + valves + piping + controller (asumsi, R0/council to review)

@@ -76,7 +76,7 @@ export const DESICCANT_ASSUMPTIONS: AssumptionEntry[] = [
   {
     id: 'desiccant.copPair',
     title: 'COP koil acuan dan after-cooler',
-    body: 'Koil acuan bersuhu penguapan rendah dan after-cooler bersuhu penguapan tinggi memakai COP dari parameter karbon. Hasil sangat peka terhadap rasio keduanya: bila after-cooler tidak lebih efisien daripada koil, rute kompresor tidak pernah kalah.',
+    body: 'Koil acuan bersuhu penguapan rendah dan after-cooler bersuhu penguapan tinggi memakai COP dari parameter karbon. Hasil sangat peka terhadap rasio keduanya: bila after-cooler tidak lebih efisien daripada koil, rute kompresor tidak pernah kalah. Bawaan: koil acuan 3,0 dan after-cooler 3,9 (rasio 1,3, karena suhu penguapan after-cooler sekitar 8–10 K lebih tinggi); rasio yang lebih besar akan terlalu menguntungkan desikan.',
     tag: 'asumsi',
   },
   {
