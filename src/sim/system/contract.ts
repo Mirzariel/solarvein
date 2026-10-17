@@ -260,6 +260,8 @@ export interface RouterInput {
   desiccantPreferred?: boolean;
   /** Real fluid temperature available for regeneration [°C] (collectorOutletC may be a cell-sensor value). */
   regenSourceC?: number;
+  /** Why the tank refuses heat: truly full, or the charge fluid is too cold for it. */
+  tankRefusal?: 'full' | 'cold';
 }
 
 export interface RouterState {
