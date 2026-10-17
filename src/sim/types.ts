@@ -69,11 +69,6 @@ export interface SimInputs {
   betaPerK: number;
   /** A thermal load that can USE heat at the outlet temperature exists (e.g. DHW preheat). */
   heatLoadAvailable: boolean;
-  /**
-   * RETIRED (v1 heat-rejection concept). Ignored by every configuration. Kept optional only because
-   * DEFAULT_SYSTEM (src/sim/system/hotel.ts) and its test still set it to false; remove them together.
-   */
-  hotSourceAvailable?: boolean;
   /** Efficiency of the fossil heater displaced by harvested heat [-] (e.g. LPG boiler 0.85). */
   boilerEfficiency: number;
   /**

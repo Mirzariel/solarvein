@@ -209,7 +209,6 @@ describe('DEFAULT_SYSTEM sizing', () => {
     expect(area).toBeGreaterThan(40);
     expect(area).toBeLessThan(150);
     expect(sys.array.module.heatLoadAvailable).toBe(true);
-    expect(sys.array.module.hotSourceAvailable).toBe(false);
     expect(sys.array.module.rainMmH).toBe(0);
     expect(sys.array.module.pumpControl).toBe('on');
     expect(sys.hotel).toEqual(HOTEL_PRESETS['hotel-100']);

@@ -257,7 +257,6 @@ export const DEFAULT_SYSTEM: SystemInputs = {
     module: {
       ...DEFAULT_INPUTS,
       heatLoadAvailable: true,
-      hotSourceAvailable: false,
       rainMmH: 0,
       pumpControl: 'on',
     },
