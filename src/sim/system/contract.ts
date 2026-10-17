@@ -309,9 +309,11 @@ export interface DayStep {
 
 export interface DayTotals {
   pvKWhE: KWhE;
+  /** All added electricity of the system: circulation pumps, controller, desiccant fans (NOT heat-pump work). */
   parasiticKWhE: KWhE;
   collectedKWhTh: KWhTh;
   dhwDemandKWhTh: KWhTh;
+  /** Solar-derived DHW heat delivered (collector + tank + heat-pump-source condenser output). */
   dhwSolarKWhTh: KWhTh;
   dhwBackupKWhTh: KWhTh;
   unmetKWhTh: KWhTh;
@@ -451,6 +453,7 @@ export interface CarbonLedger {
   baselineId: BaselineId;
   rows: LedgerRow[];
   grossAvoidedKgPerYear: number;
+  /** Penalty magnitudes (≥ 0): net = gross − embodied − parasitic. */
   embodiedKgPerYear: number;
   parasiticKgPerYear: number;
   /** Σ rows not excluded from headline. */
