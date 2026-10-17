@@ -226,11 +226,27 @@ describe('desiccant evaluation', () => {
     expect(base.dutyW.aftercooler + base.dutyW.residualCoil).toBeGreaterThanOrEqual(base.dutyW.coilRef * 0.999);
   });
 
-  it('per-kg figures share one water basis and agree with the net saving', () => {
+  it('per-kg figures share one basis (the REQUIRED moisture removal) and agree with the net saving', () => {
     const e = evaluateDesiccant(input({ regenC: 55 }));
-    const M = e.moistureRemovedKgH;
-    expect(e.perKgWater.coilRefKWhE).toBeCloseTo(e.hvac.coilRefWe / 1000 / M, 8);
-    expect(e.perKgWater.coilRefKWhE - e.perKgWater.desiccantKWhE).toBeCloseTo(e.hvac.netSavingWe / 1000 / M, 8);
+    const need = e.requiredMoistureKgH;
+    expect(need).toBeGreaterThan(e.moistureRemovedKgH);
+    expect(e.perKgWater.coilRefKWhE).toBeCloseTo(e.hvac.coilRefWe / 1000 / need, 8);
+    expect(e.perKgWater.coilRefKWhE - e.perKgWater.desiccantKWhE).toBeCloseTo(e.hvac.netSavingWe / 1000 / need, 8);
+    // physically meaningful magnitude for a dehumidifying coil: a few tenths of a kWh_e per kg of water
+    expect(e.perKgWater.coilRefKWhE).toBeGreaterThan(0.1);
+    expect(e.perKgWater.coilRefKWhE).toBeLessThan(0.8);
+  });
+
+  it('nearBreakEven: true only while operating with |net| < 2 % of the coil electricity', () => {
+    expect(evaluateDesiccant(input({ regenC: 35 })).nearBreakEven).toBe(false); // not operating
+    // tune the COP ratio to the break-even point of one case
+    const base = input({ regenC: 55 });
+    const r = evaluateDesiccant(base).breakEvenCopRatio!;
+    const at = (x: number) =>
+      evaluateDesiccant({ ...base, carbon: { ...CARBON, aftercoolerCop: x * CARBON.coilRefCop } as CarbonParams });
+    expect(at(r).nearBreakEven).toBe(true);
+    expect(at(r * 1.5).nearBreakEven).toBe(false);
+    expect(at(r * 0.7).nearBreakEven).toBe(false);
   });
 
   it('autonomy = dry bed capacity / removal rate', () => {

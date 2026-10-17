@@ -72,6 +72,8 @@ const REGEN_OUT_RH_MAX = 0.95;
 const REGEN_OUT_APPROACH_K = 3;
 /** Lower bound on the moisture basis of per-kg figures [kg/h]; avoids ÷0 when the bed does nothing. */
 const PER_KG_FLOOR_KGH = 1e-3;
+/** |net| below this share of the reference coil electricity while operating = 'approximately break-even'. */
+export const NEAR_BREAK_EVEN_SHARE = 0.02;
 /** Below this removal rate the unit is considered not operating [kg/h]. */
 export const OPERATING_MIN_KGH = 0.01;
 /** ...or when it covers less than this share of the moisture duty (a controller would not start the unit) (asumsi). */
@@ -145,6 +147,11 @@ export function equilibriumRh(w: number, tC: number): number {
 export type DesiccantLimiter = 'bed' | 'process-air' | 'keseimbangan' | 'udara-regenerasi' | 'tidak-ada';
 
 export interface DesiccantEvalDetail extends DesiccantEval {
+  /**
+   * Operating and |netSavingWe| < 2 % of the reference coil electricity: the UI shows "≈ impas".
+   * perKgWater is expressed per kg of the REQUIRED moisture removal (same duty for both routes).
+   */
+  nearBreakEven: boolean;
   /** Indonesian notes: limiting factor, labels, caveats. Shown in the Lab / Desikan section. */
   notes: string[];
   limiter: DesiccantLimiter;
@@ -175,6 +182,7 @@ export interface DesiccantEvalDetail extends DesiccantEval {
 
 const zeroEval = (i: DesiccantEvalInput, notes: string[]): DesiccantEvalDetail => ({
   operating: false,
+  nearBreakEven: false,
   breakEvenCopRatio: null,
   regenC: i.regenC,
   regenAirRh: 0,
@@ -435,7 +443,10 @@ function evaluateCore(i: DesiccantEvalInput): DesiccantEvalDetail {
   const thermalCop = regenHeatW > 0 ? latentRemovedW / regenHeatW : 0;
 
   // ── Per kg of water (same duty, two routes) ──
-  const basis = Math.max(M, PER_KG_FLOOR_KGH);
+  // Both routes are divided by the SAME duty: the moisture the fresh air must shed to reach the supply state
+  // (what the reference coil removes), not by what the bed happens to remove. Each route's electricity already
+  // covers the full stream (the desiccant route includes its residual coil), so the two are comparable.
+  const basis = Math.max(mProcessNeed, PER_KG_FLOOR_KGH);
   const perKgWater = {
     desiccantKWhE: desiccantRouteWe / 1000 / basis,
     coilRefKWhE: coilRefWe / 1000 / basis,
@@ -470,6 +481,7 @@ function evaluateCore(i: DesiccantEvalInput): DesiccantEvalDetail {
 
   return {
     operating,
+    nearBreakEven: operating && Math.abs(netSavingWe) < NEAR_BREAK_EVEN_SHARE * coilRefWe,
     breakEvenCopRatio: null,
     regenC,
     regenAirRh: rhRegen,
