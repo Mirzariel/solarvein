@@ -46,7 +46,7 @@ export default function RouterMobile({ view, target, layers, electricalRefW, ton
   const f1 = (x: number) => Math.round(x * 10) / 10;
 
   // destination x (column centres) and y of the destination row
-  const X = { bypass: 34, dhw: 112, tank: 214, desiccant: 306 };
+  const X = { bypass: 32, dhw: 120, tank: 214, desiccant: 306 };
   const Y0 = 150;
   const Y1 = 296;
   const path = (k: 'bypass' | 'dhw' | 'tank' | 'desiccant') => {
@@ -62,6 +62,7 @@ export default function RouterMobile({ view, target, layers, electricalRefW, ton
   const desc = diagramDescription({ mode: target.mode, pumpOn: target.pumpOn, shares: { bypass: n.vBypass, dhw: n.vDhw, tank: n.vTank, desiccant: n.vDesiccant }, soc: t.soc });
   const elecW = electricalRefW > 0 ? Math.min(1, n.electricalW / electricalRefW) : 0;
   const desOn = n.desOn;
+  const supplyC = view.mode === "B" ? P.cool : P.ink2;
 
   const Tx = ({ x, y, children, anchor = 'start', mono, size = 12, fill = P.ink2, halo, opacity }: { x: number; y: number; children: ReactNode; anchor?: 'start' | 'middle' | 'end'; mono?: boolean; size?: number; fill?: string; halo?: boolean; opacity?: number }) => (
     <text x={x} y={y} textAnchor={anchor} fontFamily={mono ? P.mono : P.sans} fontSize={size} fill={fill} opacity={opacity} style={halo ? { paintOrder: 'stroke', stroke: P.paper, strokeWidth: 3.5, strokeLinejoin: 'round' } : undefined}>
@@ -73,7 +74,7 @@ export default function RouterMobile({ view, target, layers, electricalRefW, ton
   return (
     <div data-export="router-diagram-mobile" className="flex flex-col gap-6" style={{ lineHeight: 0 }}>
       {layers.termal ? (
-        <svg viewBox="0 0 360 560" width="100%" role="img" aria-labelledby={`${uid}t ${uid}d`} style={{ display: 'block' }}>
+        <svg viewBox="0 0 360 535" width="100%" role="img" aria-labelledby={`${uid}t ${uid}d`} style={{ display: 'block' }}>
           <title id={`${uid}t`}>Diagram aliran termal, tampilan vertikal</title>
           <desc id={`${uid}d`}>{desc}</desc>
           <defs>
@@ -104,10 +105,10 @@ export default function RouterMobile({ view, target, layers, electricalRefW, ton
           <Tx x={204} y={Y0 - 18} fill={P.ink}>Router</Tx>
           {/* destinations */}
           <path d={`M${X.bypass},${Y1 + 2} v14`} stroke={P.ink3} />
-          <Tx x={X.bypass} y={Y1 + 34} anchor="middle" fill={P.ink3}>tidak</Tx><Tx x={X.bypass} y={Y1 + 48} anchor="middle" fill={P.ink3}>dipakai</Tx>
-          <Tx x={X.bypass} y={Y1 + 64} anchor="middle" mono fill={P.ink2} opacity={t.vBypass > 0.01 ? 1 : 0}>{kw(t.qLiquidW * t.vBypass)} kW{thTag}</Tx>
-          <rect x={X.dhw - 42} y={Y1} width={84} height={120} fill="none" stroke={P.ink} />
-          <path d={`M${X.dhw - 42},${Y1 + 56} L${X.dhw + 42},${Y1 + 112} M${X.dhw - 42},${Y1 + 112} L${X.dhw + 42},${Y1 + 56}`} stroke={P.lineStrong} />
+          <rect x={X.bypass - 28} y={Y1 + 1} width={56} height={22} fill={P.paper} stroke={P.ink2} /><Tx x={X.bypass} y={Y1 + 42} anchor="middle" fill={P.ink3}>pembuang</Tx><Tx x={X.bypass} y={Y1 + 56} anchor="middle" fill={P.ink3}>panas</Tx><Tx x={X.bypass} y={Y1 + 70} anchor="middle" fill={P.ink3}>(dry cooler)</Tx>
+          <Tx x={X.bypass} y={Y1 + 86} anchor="middle" mono fill={P.ink2} opacity={t.vBypass > 0.01 ? 1 : 0}>{kw(t.qLiquidW * t.vBypass)} kW{thTag}</Tx>
+          <rect x={X.dhw - 46} y={Y1} width={92} height={120} fill="none" stroke={P.ink} />
+          <path d={`M${X.dhw - 46},${Y1 + 56} L${X.dhw + 46},${Y1 + 112} M${X.dhw - 46},${Y1 + 112} L${X.dhw + 46},${Y1 + 56}`} stroke={P.lineStrong} />
           <Tx x={X.dhw} y={Y1 + 22} anchor="middle" fill={P.ink2}>HX</Tx><Tx x={X.dhw} y={Y1 + 38} anchor="middle" fill={P.ink2}>prapemanasan</Tx>
           <g clipPath={`url(#${uid}tk)`}>
             <rect x={175} y={Y1 + tankH - tankFill} width={78} height={tankFill} fill={P.heat} opacity={0.5} />
@@ -115,19 +116,19 @@ export default function RouterMobile({ view, target, layers, electricalRefW, ton
           {tankFill > 1 ? <path d={`M176,${Y1 + tankH - tankFill} H252`} stroke={P.heatMark} /> : null}
           <rect x={175} y={Y1} width={78} height={tankH} rx={6} fill="none" stroke={P.ink} />
           <Tx x={X.tank} y={Y1 + tankH + 18} anchor="middle" fill={P.ink2}>Tangki</Tx>
-          <Tx x={X.tank} y={Y1 + tankH + 35} anchor="middle" mono fill={P.ink}>SoC {formatId(t.soc * 100, 0)} %</Tx>
+          <Tx x={X.tank} y={Y1 + tankH + 35} anchor="middle" mono fill={P.ink}>terisi {formatId(t.soc * 100, 0)} %</Tx>
           <rect x={X.desiccant - 32} y={Y1} width={64} height={30} fill={P.paper} stroke={P.ink2} strokeDasharray="4 3" />
           <Tx x={X.desiccant} y={Y1 + 50} anchor="middle" fill={P.ink2}>HX regenerasi</Tx>
           <Tx x={X.desiccant} y={Y1 + 66} anchor="middle" fill={P.ink3}>hipotesis riset</Tx>
           {/* discharge: tank → HX (dim = stored heat) */}
-          <path d={`M${X.tank - 39},${Y1 + 84} H${X.dhw + 42}`} stroke={P.heat} strokeWidth={Math.max(0, dis)} opacity={dis > 0.3 ? 0.55 : 0} fill="none" />
+          <path d={`M${X.tank - 39},${Y1 + 84} H${X.dhw + 46}`} stroke={P.heat} strokeWidth={Math.max(0, dis)} opacity={dis > 0.3 ? 0.55 : 0} fill="none" />
           {/* output band: direct | from tank | heater */}
           <g transform={`translate(${X.dhw - W / 2} ${Y1 + 120})`}>
             <rect x={0} y={0} width={dir} height={64} fill={P.heat} />
             <rect x={dir} y={0} width={tankStrip} height={64} fill={P.heat} opacity={0.55} />
             <rect x={dir + tankStrip} y={0} width={bak} height={64} fill={P.ink2} />
           </g>
-          <Tx x={X.dhw + 24} y={Y1 + 146} size={13} fill={P.ink}>Air panas hotel</Tx>
+          <Tx x={X.dhw + 28} y={Y1 + 164} size={13} fill={P.ink}>Air panas hotel</Tx>
           {(
             [
               ['langsung', t.directW, P.heat, 1],
@@ -136,8 +137,8 @@ export default function RouterMobile({ view, target, layers, electricalRefW, ton
             ] as const
           ).map(([label, w, fill, op], i) => (
             <g key={label}>
-              <rect x={X.dhw + 24} y={Y1 + 154 + i * 18} width={8} height={8} fill={fill} opacity={op} />
-              <Tx x={X.dhw + 38} y={Y1 + 162 + i * 18}>
+              <rect x={X.dhw + 28} y={Y1 + 172 + i * 18} width={8} height={8} fill={fill} opacity={op} />
+              <Tx x={X.dhw + 42} y={Y1 + 180 + i * 18}>
                 {label} <tspan fontFamily={P.mono} fill={P.ink}>{kw(w)} kW{thTag}</tspan>
               </Tx>
             </g>
@@ -164,7 +165,7 @@ export default function RouterMobile({ view, target, layers, electricalRefW, ton
             <path d="M20,44 H150" stroke={P.ink2} strokeWidth={1.5} />
             <rect x={150} y={30} width={80} height={28} fill={P.paper} stroke={P.ink} />
             <Tx x={190} y={48} anchor="middle" fill={P.ink2}>koil AC biasa</Tx>
-            <path d="M230,44 H336" stroke={P.cool} strokeWidth={2.5} />
+            <path d="M230,44 H336" stroke={supplyC} strokeWidth={2.5} />
           </g>
           <g opacity={0.3 + 0.7 * desOn}>
             <path d="M20,98 H84" stroke={P.ink2} strokeWidth={1.5} strokeDasharray="5 4" />
@@ -173,11 +174,11 @@ export default function RouterMobile({ view, target, layers, electricalRefW, ton
             <path d="M164,98 H180" stroke={P.ink2} strokeWidth={1.5} strokeDasharray="5 4" />
             <rect x={180} y={84} width={56} height={28} fill={P.paper} stroke={P.ink2} strokeDasharray="4 3" />
             <Tx x={208} y={78} anchor="middle" fill={P.ink2}>after-cooler</Tx>
-            <path d="M236,98 H248 V44" stroke={P.cool} strokeWidth={2.5} fill="none" />
+            <path d="M236,98 H248 V44" stroke={supplyC} strokeWidth={2.5} fill="none" />
             <Tx x={20} y={136} fill={P.ink3}>regenerasi: {target.regenAir === 'exhaust' ? 'udara buang hotel' : 'udara luar'}</Tx>
             {desOn > 0.5 ? <Tx x={340} y={136} anchor="end" mono fill={P.ink}>{formatId(t.moistureKgH, 1)} kg/jam</Tx> : null}
           </g>
-          <path d={head(336, 44, 'r', 2.5)} fill={P.cool} />
+          <path d={head(336, 44, 'r', 2.5)} fill={supplyC} />
           <Tx x={340} y={34} anchor="end" fill={P.ink} size={13}>Udara pasok</Tx>
           <Tx x={340} y={64} anchor="end" mono fill={P.ink2}>embun {formatId(target.supplyDewPointC, 0)} °C</Tx>
         </svg>

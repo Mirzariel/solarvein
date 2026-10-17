@@ -21,14 +21,14 @@ describe('router diagram', () => {
 
   it('output strips split the hot-water demand without exceeding the band', () => {
     const st = stepFor('A');
-    const o = outputStrips(st.dhw.fromCollectorW, st.dhw.fromTankW, st.dhw.backupW, st.dhw.demandW);
+    const o = outputStrips(st.dhw.fromCollectorW, st.dhw.fromTankW, st.dhw.demandW);
     expect(o.direct + o.tank + o.backup).toBeCloseTo(W_TOT, 6);
   });
 
   it('sentences follow the computed state, not the preset letter', () => {
     for (const m of ['A', 'B', 'C'] as const) {
       const snap = routerSnapshot(stepFor(m));
-      const text = routerSentence({ mode: snap.mode, pumpOn: snap.pumpOn, reason: snap.reason, valves: snap.valves, backupShare: 0.2 });
+      const text = routerSentence({ mode: snap.mode, pumpOn: snap.pumpOn, reason: snap.reason, backupShare: 0.2 });
       expect(text.length).toBeGreaterThan(20);
       if (!snap.pumpOn && snap.mode === 'C') expect(text).toMatch(/^Tanpa sinar/);
     }
