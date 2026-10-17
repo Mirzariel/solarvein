@@ -8,6 +8,7 @@ import Hero from './sections/Hero';
 import Closing from './sections/Closing';
 import { startSmoothScroll } from './motion/smoothScroll';
 import { SECTION } from './sections/nav';
+import PresentationRoot from './presentation/PresentationRoot';
 
 /**
  * v2 order (src/sections/nav.ts is the registry): Pembuka (#awal) → 01 Masalah → 02 Sistem (+ #sistem-dalam)
@@ -78,6 +79,7 @@ export default function App() {
         Lompat ke konten
       </a>
       <SiteHeader />
+      <PresentationRoot />
       <main id="konten" tabIndex={-1} className="outline-none">
         <ErrorBoundary label="Pembuka">
           <Opening />
