@@ -3,7 +3,7 @@
  * Heavy tiers (year, baselines, area sweep) are memoised in the sim view cache (getSystemView, keyed
  * structurally) and read through useDeferredValue so slider drags stay responsive.
  */
-import { useDeferredValue, useMemo } from 'react';
+import { useDeferredValue, useMemo, useRef } from 'react';
 import {
   getSystemView,
   routerSnapshot,
@@ -23,18 +23,28 @@ import {
   type SystemView,
 } from '../sim/system';
 import { useSystemStore } from './system';
+import { useLive } from './liveScope';
+
+/** The store's system, frozen while the calling section is off-screen (see liveScope.tsx). */
+function useLiveSys(): SystemInputs {
+  const sys = useSystemStore((s) => s.sys);
+  const live = useLive();
+  const held = useRef(sys);
+  if (live) held.current = sys;
+  return held.current;
+}
 
 export const useSystem = (): SystemInputs => useSystemStore((s) => s.sys);
 
 /** Memoised view object for the current system (stable identity until inputs change). */
 export function useSystemView(): SystemView {
-  const sys = useSystemStore((s) => s.sys);
+  const sys = useLiveSys();
   return useMemo(() => getSystemView(sys), [sys]);
 }
 
 /** Same as useSystemView but lags behind rapid edits (for expensive below-the-fold tiers). */
 export function useDeferredSystemView(): SystemView {
-  const sys = useDeferredValue(useSystemStore((s) => s.sys));
+  const sys = useDeferredValue(useLiveSys());
   return useMemo(() => getSystemView(sys), [sys]);
 }
 

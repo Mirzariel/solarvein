@@ -246,7 +246,7 @@ describe('speed', () => {
       best = Math.min(best, (performance.now() - t0) / n);
     }
     // Wall-time bound only when explicitly requested (PERF=1): the shared dev machine runs browsers/agents concurrently.
-    if (process.env.PERF === '1') expect(best).toBeLessThan(0.1);
+    if ((globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.PERF === '1') expect(best).toBeLessThan(0.1);
     else expect(Number.isFinite(best)).toBe(true);
   });
 });

@@ -85,8 +85,14 @@ export function Slider({
 
   const commit = () => {
     if (draft === null) return;
-    const n = parseId(draft);
+    let n = parseId(draft);
     setDraft(null);
+    if (Number.isNaN(n)) {
+      // "1e999" overflows to ±Infinity: clamp to the range ends instead of ignoring the entry.
+      const raw = Number(draft.trim().replace(/\s/g, '').replace(',', '.'));
+      if (raw === Infinity) n = max;
+      else if (raw === -Infinity) n = min;
+    }
     if (!Number.isFinite(n)) return;
     const snapped = Math.round((n - min) / step) * step + min;
     const clamped = Math.min(max, Math.max(min, Number(snapped.toFixed(decimals + 2))));

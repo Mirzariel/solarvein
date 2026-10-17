@@ -9,6 +9,7 @@ import Closing from './sections/Closing';
 import { startSmoothScroll } from './motion/smoothScroll';
 import { SECTION } from './sections/nav';
 import PresentationRoot from './presentation/PresentationRoot';
+import { LiveWhenVisible } from './state/liveScope';
 
 /**
  * v2 order (src/sections/nav.ts is the registry): Pembuka (#awal) → 01 Masalah → 02 Sistem (+ #sistem-dalam)
@@ -51,7 +52,9 @@ function Lazy({ id, minH, children }: { id: string; minH: string; children: Reac
   const label = SECTION[id]?.label ?? id;
   return (
     <ErrorBoundary label={label}>
-      <Suspense fallback={<SectionFallback id={id} label={label} minH={minH} />}>{children}</Suspense>
+      <Suspense fallback={<SectionFallback id={id} label={label} minH={minH} />}>
+        <LiveWhenVisible>{children}</LiveWhenVisible>
+      </Suspense>
     </ErrorBoundary>
   );
 }
@@ -82,7 +85,9 @@ export default function App() {
       <PresentationRoot />
       <main id="konten" tabIndex={-1} className="outline-none">
         <ErrorBoundary label="Pembuka">
-          <Opening />
+          <LiveWhenVisible>
+            <Opening />
+          </LiveWhenVisible>
         </ErrorBoundary>
         <ErrorBoundary label="Masalah">
           <Masalah />
