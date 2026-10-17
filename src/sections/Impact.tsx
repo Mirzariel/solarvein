@@ -42,7 +42,7 @@ export default function Impact() {
   return (
     <section id="dampak" aria-labelledby="dampak-judul" className="impact relative scroll-mt-14 overflow-x-clip bg-paper">
       {/* the one dark beat of the back half */}
-      <div className="bg-stage-0 text-stage-ink">
+      <div data-dark-band className="bg-stage-0 text-stage-ink">
         <div className="page-wrap py-20 lg:py-28">
           <SectionIndex n="06" label="Dampak" inverse />
           <div className="grid-12 mt-8 items-end gap-y-12">

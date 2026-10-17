@@ -83,11 +83,22 @@ export const useSystemStore = create<SystemState>()((set) => ({
     }),
   setHotelPreset: (id) => set((st) => ({ sys: { ...clone(st.sys), hotel: { ...HOTEL_PRESETS[id] } }, hotelPreset: id })),
   resetSys: () => set({ sys: clone(DEFAULT_SYSTEM), hotelPreset: 'hotel-100', strategy: DEFAULT_SYSTEM.controller.strategy }),
-  setModeTarget: (m) => set({ modeTarget: m, scenario: MODE_TARGETS[m].scenario, hour: MODE_TARGETS[m].hour }),
+  setModeTarget: (m) =>
+    set((st) =>
+      st.modeTarget === m && st.scenario === MODE_TARGETS[m].scenario && st.hour === MODE_TARGETS[m].hour
+        ? st
+        : { modeTarget: m, scenario: MODE_TARGETS[m].scenario, hour: MODE_TARGETS[m].hour },
+    ),
   setScenario: (s) =>
     set((st) => ({ scenario: s, hour: clampHour(st.hour, s), modeTarget: 'custom', dayView: s === 'hujan-3-hari' ? '72h' : st.dayView })),
   setStrategy: (s) => set({ strategy: s }),
-  setHour: (h) => set((st) => ({ hour: clampHour(h, st.scenario), modeTarget: 'custom' })),
+  // Dedupe: scroll-driven callers (pins, scrubbers) may call this every frame with the same hour.
+  setHour: (h) =>
+    set((st) => {
+      const hour = clampHour(h, st.scenario);
+      if (Math.abs(hour - st.hour) < 1e-6 && st.modeTarget === 'custom') return st;
+      return { hour, modeTarget: 'custom' };
+    }),
   setDayView: (v) =>
     set((st) => ({
       dayView: v,
