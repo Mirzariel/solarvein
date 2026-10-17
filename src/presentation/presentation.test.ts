@@ -3,7 +3,7 @@ import { PRESENTATION_SCENES } from '../sections/nav';
 import { appMode, flag } from './appMode';
 import { resolveKey, type TargetInfo } from './keys';
 import { parsePreset } from './preset';
-import { SCENES, cursorFromTops, stepCursor } from './scenes';
+import { SCENES, cursorFromTops, lastDemoIndex, stepCursor } from './scenes';
 
 const body: TargetInfo = { tag: 'body', role: '', typing: false };
 const slider: TargetInfo = { tag: 'input', role: '', typing: true };
@@ -29,10 +29,17 @@ describe('scenes', () => {
     expect(last).toMatchObject({ id: 'sehari', rain3: true, demo: false });
     expect(SCENES.filter((s) => s.demo).map((s) => s.id)).toEqual(['masalah', 'sistem', 'sehari', 'dampak']);
   });
-  it('steps and clamps', () => {
-    expect(stepCursor(-1, -1, 9)).toBe(-1);
-    expect(stepCursor(-1, 1, 9)).toBe(0);
-    expect(stepCursor(8, 1, 9)).toBe(8);
+  it('steps along the demo path and stops at its end (no wrap into the Q&A backups)', () => {
+    expect(lastDemoIndex()).toBe(3);
+    expect(stepCursor(-1, -1)).toBe(-1);
+    expect(stepCursor(-1, 1)).toBe(0);
+    expect(stepCursor(2, 1)).toBe(3);
+    expect(stepCursor(3, 1)).toBe(3);
+  });
+  it('moves between backups and returns to the end of the path with Left', () => {
+    expect(stepCursor(4, 1)).toBe(5);
+    expect(stepCursor(8, 1)).toBe(8);
+    expect(stepCursor(4, -1)).toBe(3);
   });
   it('derives the cursor from section tops and keeps the rain backup on Sehari', () => {
     const tops = SCENES.map((s) => (s.id === 'masalah' ? -800 : s.id === 'sistem' ? -200 : s.id === 'sehari' ? -10 : 900));

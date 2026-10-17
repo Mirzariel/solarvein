@@ -11,9 +11,14 @@
  *  - `mood` is the studio light target (sun 0..1, humid 0..1, night 0..1; `rain` is retired and always 0). Left alone,
  *    the studio derives it from the committed sim result; set `mood.current.driven = true` and write it every
  *    frame to take over (AmbientMood does, from `frame.climate`).
- *  - `framing` (0 = panel .. 1 = hotel roof) is the camera framing. Sections drive it through the store:
- *    `store.getState().setFraming('hotel')` / `('panel')` / a number 0..1 (scroll-scrubbed). The camera springs to
- *    the pose (reduced motion: snaps); an A/B/C mode switch never touches it.
+ *  - `framing` (0 = panel .. 1 = hotel roof) is the camera framing; it DEFAULTS to 0 = 'panel' (the collector fills
+ *    ~70 % of the stage width). Sections drive it through the store:
+ *      `setFraming('panel' | 'hotel')`  exact poses;
+ *      `setFraming(p)` with a NUMBER = scroll progress 0..1 of the pull-back scene. The pull-back is held back: the
+ *      stored framing is `framingFromProgress(p)` (smootherstep over p = 0.75..1), so the stage opens on the panel
+ *      and only retreats to the hotel roof in the last quarter of the scroll window;
+ *      `setFramingRaw(t)` sets the 0..1 blend directly (no delay).
+ *    The camera springs to the pose (reduced motion: snaps); an A/B/C mode switch never touches it.
  *  - `projection` is the sink that receives screen positions of the 3D anchors each rendered frame
  *    (annotation overlays update their DOM transforms from it - no React renders).
  */
@@ -34,6 +39,14 @@ export type LayerVisibility = Record<LayerId, boolean>;
 /** Camera framing: 'panel' = the hero collector (~70 % of the stage width), 'hotel' = pulled back to the roof. */
 export type FramingName = 'panel' | 'hotel';
 
+/** Scroll progress at which the pull-back starts (0.75 = the last quarter of the scroll window). */
+export const FRAMING_DELAY = 0.75;
+/** Scroll progress 0..1 -> stored framing 0..1: stays on 'panel' until FRAMING_DELAY, then smootherstep to 'hotel'. */
+export function framingFromProgress(p: number): number {
+  const t = Math.min(1, Math.max(0, (p - FRAMING_DELAY) / (1 - FRAMING_DELAY)));
+  return t * t * t * (t * (t * 6 - 15) + 10);
+}
+
 export interface StageState {
   /** Camera framing 0 = panel .. 1 = hotel roof (continuous so a scroll scene can scrub it). */
   framing: number;
@@ -47,8 +60,10 @@ export interface StageState {
 }
 
 export interface StageActions {
-  /** 'panel' | 'hotel' | 0..1. Camera framing API (see the file header). */
+  /** 'panel' | 'hotel' | scroll progress 0..1 (held back, see the file header). */
   setFraming: (v: FramingName | number) => void;
+  /** Direct 0..1 blend between panel and hotel (no scroll delay). */
+  setFramingRaw: (t: number) => void;
   setExploded: (v: boolean) => void;
   toggleExploded: () => void;
   setCrossSection: (v: boolean) => void;
@@ -78,7 +93,11 @@ export function createStageStore(defaults: StageDefaults = {}): StageStore {
     focusPart: defaults.focusPart ?? null,
     hoverPart: null,
     setFraming: (v) => {
-      const framing = v === 'panel' ? 0 : v === 'hotel' ? 1 : Math.min(1, Math.max(0, v));
+      const framing = v === 'panel' ? 0 : v === 'hotel' ? 1 : framingFromProgress(v);
+      set((s) => (s.framing === framing ? s : { framing }));
+    },
+    setFramingRaw: (t) => {
+      const framing = Math.min(1, Math.max(0, t));
       set((s) => (s.framing === framing ? s : { framing }));
     },
     setExploded: (exploded) => set({ exploded }),
