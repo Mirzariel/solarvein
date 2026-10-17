@@ -99,10 +99,10 @@ export const DayTracks = memo(function DayTracks({ model, width, domains }: Trac
   const gap = model.bands.map((b) => X(b.t1) - X(b.t0));
 
   const titles: Array<[TrackId, string, string]> = [
-    ['bands', 'Mode pengatur', ''],
+    ['bands', 'Mode', ''],
     ['g', 'Radiasi', 'W/m²'],
-    ['alloc', 'Pasokan air panas', 'kWth'],
-    ['soc', 'Muatan tangki', '%'],
+    ['alloc', 'Air panas', 'kWth'],
+    ['soc', 'Isi tangki', '%'],
     ['pv', 'Listrik PV', 'kWe'],
   ];
 
@@ -182,22 +182,7 @@ export const DayTracks = memo(function DayTracks({ model, width, domains }: Trac
       <path d={linePath(xs, top3)} fill="none" stroke="var(--color-ink-3)" strokeWidth="1" />
       {model.desiccantUsed ? (
         <path d={linePath(xs, model.desiccant.map(yA))} fill="none" stroke="var(--color-ink-2)" strokeWidth="1.5" strokeDasharray="5 4" />
-      ) : (
-        <g>
-          <line
-            x1={plotL + 8}
-            x2={plotL + 26}
-            y1={tracks.alloc.y0 + 9}
-            y2={tracks.alloc.y0 + 9}
-            stroke="var(--color-ink-2)"
-            strokeWidth="1.5"
-            strokeDasharray="4 3"
-          />
-          <text x={plotL + 32} y={tracks.alloc.y0 + 9} dy="0.35em" fill="var(--color-ink-2)" {...TICK} style={{ ...HALO, strokeWidth: 3 }}>
-            {L.compact ? 'Desikan: 0' : 'Desikan: tidak dipakai'}
-          </text>
-        </g>
-      )}
+      ) : null}
 
       {/* 4 · tank state of charge */}
       {rowTicks('soc', [0, 0.5, 1], yS, (v) => formatId(v * 100, 0))}
