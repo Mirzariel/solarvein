@@ -43,7 +43,24 @@ function idleState(mode: ControllerMode, input: RouterInput, demandW: number): R
   };
 }
 
-function inScheduleWindow(hourOfDay: number): boolean {
+/**
+ * Optional extensions of RouterInput (kept here so the contract file is untouched; proposed for the contract).
+ *  - tankAcceptW: the most heat the tank can take right now at the charge temperature [W_th] — 0 when the
+ *    charge fluid is not hotter than the tank bottom by a margin or when there is no headroom. When absent the
+ *    legacy rule applies (open while T_top < tankMaxC − 1 K).
+ *  - desiccantPreferred: value gate for 'adaptive' (desiccant saved kWh_e per kWh_th beats the PV gain of
+ *    dumping the heat). false → the desiccant is skipped; absent → true.
+ *  - regenSourceC: temperature compared with desiccantMinRegenC (the real fluid outlet); absent → collectorOutletC
+ *    (which, for a thermostat sensor, is a cell temperature).
+ */
+export interface RouterInputX extends RouterInput {
+  tankAcceptW?: number;
+  desiccantPreferred?: boolean;
+  regenSourceC?: number;
+}
+
+/** True for 11:00 ≤ hour < 15:00 (the naive 'fixed-schedule' window). */
+export function inScheduleWindow(hourOfDay: number): boolean {
   const h = ((hourOfDay % 24) + 24) % 24;
   return h >= SCHEDULE_START_H && h < SCHEDULE_END_H;
 }
@@ -51,13 +68,13 @@ function inScheduleWindow(hourOfDay: number): boolean {
 /**
  * Decide the pump and the heat split for this instant.
  *
- * `input.collectorOutletC` is the collector SENSOR temperature of a differential thermostat: while the pump is
- * off (prev.pumpOn false) pass the stagnant collector temperature (it decides the START, threshold onK); while
- * the pump runs pass the running outlet temperature (it decides the STOP, threshold offK). It is compared with
- * tankBottomC. The caller (day.ts) is responsible for this choice. The same value is used for the
- * desiccant-minimum test, so on a start step the caller must check the real outlet before crediting regeneration.
+ * Thermostat semantics (decided by the caller, day.ts): `input.collectorOutletC` is the collector SENSOR — the
+ * absorber/cell temperature: the stagnant one while the pump is off (start, threshold onK) and the running one
+ * while it runs (stop, threshold offK) — and `input.tankBottomC` is the lowest available sink return temperature
+ * (tank bottom normally; the dump/desiccant return when the tank cannot accept heat). Use `regenSourceC` for the
+ * real fluid temperature when the sensor is a cell temperature.
  */
-export function allocate(input: RouterInput): RouterState {
+export function allocate(input: RouterInputX): RouterState {
   const { params, prev } = input;
   const q = Number.isFinite(input.qAvailableW) ? Math.max(0, input.qAvailableW) : 0;
   const demand = Number.isFinite(input.dhwDemandW) ? Math.max(0, input.dhwDemandW) : 0;
@@ -72,7 +89,13 @@ export function allocate(input: RouterInput): RouterState {
   // Mode B: daylight but no useful collection → stored heat only.
   if (!pumpOn) return idleState('B', input, demand);
 
-  const tankOpen = input.tankTopC < input.tankMaxC - TANK_FULL_MARGIN_K;
+  const tankCapW =
+    input.tankAcceptW !== undefined
+      ? Math.max(0, input.tankAcceptW)
+      : input.tankTopC < input.tankMaxC - TANK_FULL_MARGIN_K
+        ? Infinity
+        : 0;
+  const regenSourceC = input.regenSourceC ?? input.collectorOutletC;
   const strategy = params.strategy;
 
   const alloc = zeros();
@@ -87,14 +110,13 @@ export function allocate(input: RouterInput): RouterState {
   } else {
     alloc.dhw = Math.min(q, demand);
     let rest = q - alloc.dhw;
-    if (tankOpen) {
-      alloc.tank = rest;
-      rest = 0;
-    }
-    if (rest > 0 && strategy === 'adaptive' && input.desiccantWanted) {
+    const toTank = Math.min(rest, tankCapW);
+    alloc.tank = toTank;
+    rest -= toTank;
+    if (rest > 0 && strategy === 'adaptive' && input.desiccantWanted && input.desiccantPreferred !== false) {
       const wasRegenerating = (prev?.allocW.desiccant ?? 0) > 0;
       const minC = params.desiccantMinRegenC - (wasRegenerating ? DESICCANT_HYSTERESIS_K : 0);
-      if (input.collectorOutletC >= minC) {
+      if (regenSourceC >= minC) {
         alloc.desiccant = rest;
         rest = 0;
       } else {

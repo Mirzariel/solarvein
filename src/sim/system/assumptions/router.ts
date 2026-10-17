@@ -44,11 +44,11 @@ export const ROUTER_ASSUMPTIONS: AssumptionEntry[] = [
   },
   {
     id: 'router-tangki-penuh',
-    title: 'Tangki dianggap penuh mendekati suhu maksimum',
+    title: 'Penerimaan tangki dan gerbang nilai desikan',
     body:
-      'Tangki berhenti menerima panas bila suhu bagian atas sudah dekat suhu maksimum; panas sisa dialihkan ke desikan (bila layak) atau bypass.',
-    value: 'T atas ≥ T maks − 1 K',
-    tag: 'asumsi',
+      'Bila pemanggil memberi batas penerimaan tangki, tangki hanya menerima panas sebatas itu (nol bila fluida tidak cukup panas atau tidak ada ruang); aturan lama (suhu atas di bawah maksimum − 1 K) berlaku hanya bila batas tidak diberikan. Pada strategi adaptif, sisa panas ke desikan juga memerlukan persetujuan gerbang nilai: penghematan listrik desikan per kWh_th harus melebihi tambahan listrik PV bila panas dibuang.',
+    value: 'Batas penerimaan tangki dan persetujuan nilai dari pemanggil',
+    tag: 'usulan',
   },
   {
     id: 'router-jadwal-tetap',

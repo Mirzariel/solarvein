@@ -235,6 +235,54 @@ describe('router: strategy behaviour', () => {
   });
 });
 
+describe('router: tank acceptance and the value gate', () => {
+  it('tankAcceptW caps the tank share; the rest goes to bypass (dhw-priority) or desiccant (adaptive, hot enough)', () => {
+    const dp = allocate({ ...base({ qAvailableW: 5000, dhwDemandW: 1000 }, 'dhw-priority'), tankAcceptW: 1500 });
+    expect(dp.allocW).toMatchObject({ dhw: 1000, tank: 1500, desiccant: 0, bypass: 2500 });
+    const ad = allocate({
+      ...base({ qAvailableW: 5000, dhwDemandW: 1000, desiccantWanted: true, collectorOutletC: 85 }),
+      tankAcceptW: 1500,
+    });
+    expect(ad.allocW).toMatchObject({ dhw: 1000, tank: 1500, desiccant: 2500, bypass: 0 });
+  });
+
+  it('tankAcceptW = 0 closes the tank even though T_top is far below tankMaxC', () => {
+    const out = allocate({ ...base({ tankTopC: 40 }), tankAcceptW: 0 });
+    expect(out.allocW.tank).toBe(0);
+    expect(out.allocW.bypass).toBeGreaterThan(0);
+    expect(out.reason).toBe('tangki-penuh-bypass');
+  });
+
+  it('desiccantPreferred = false (value gate) sends the surplus to bypass even when hot enough', () => {
+    const wanted = base({ tankTopC: 80, collectorOutletC: 85, desiccantWanted: true });
+    expect(allocate({ ...wanted, desiccantPreferred: true }).allocW.desiccant).toBe(3000);
+    const no = allocate({ ...wanted, desiccantPreferred: false });
+    expect(no.allocW.desiccant).toBe(0);
+    expect(no.allocW.bypass).toBe(3000);
+  });
+
+  it('regenSourceC (real outlet) decides the minimum-temperature test, not the thermostat sensor', () => {
+    const hotSensor = base({ tankTopC: 80, collectorOutletC: 90, desiccantWanted: true });
+    expect(allocate({ ...hotSensor, regenSourceC: 50 }).allocW.desiccant).toBe(0);
+    expect(allocate({ ...hotSensor, regenSourceC: 75 }).allocW.desiccant).toBe(3000);
+  });
+
+  it('conservation holds with the extended inputs', () => {
+    const r = prng(99);
+    for (let i = 0; i < 1000; i++) {
+      const input = randomInput(r, STRATEGIES[i % 3]!);
+      const out = allocate({
+        ...input,
+        tankAcceptW: r() * 10000,
+        desiccantPreferred: r() < 0.5,
+        regenSourceC: 20 + r() * 80,
+      });
+      if (out.pumpOn) expect(Math.abs(sum(out.allocW) - input.qAvailableW)).toBeLessThanOrEqual(1e-9 * input.qAvailableW);
+      for (const s of SINKS) expect(out.allocW[s]).toBeGreaterThanOrEqual(0);
+    }
+  });
+});
+
 describe('router: hysteresis over a synthetic 24 h ramp', () => {
   function run(useHysteresis: boolean) {
     const r = prng(7);
