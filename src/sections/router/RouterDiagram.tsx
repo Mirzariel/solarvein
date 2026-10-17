@@ -192,8 +192,8 @@ export default function RouterDiagram({ view, target, layers, tone = 'page', ele
           <path d={PATHS.trunk} fill="none" stroke={P.ink3} strokeWidth={1} opacity={1 - sumV} />
           <path data-flow="trunk" d={PATHS.trunk} {...band(trunkW, P.heat)} opacity={trunkW > 0.3 ? 1 : 0} />
           {trunkW > 3 ? <path d={head(ROUTER.x - ROUTER.r, TRUNK_Y, 'r', trunkW)} fill={P.heat} opacity={Math.min(1, sumV)} /> : null}
-          <Tx x={158} y={228} fill={P.ink2} P={P} opacity={showQ ? 1 : 0.5}>keluar</Tx>
-          <Tx x={158} y={282} mono fill={P.ink} halo P={P}>{formatId(t.outletC, 1)} °C</Tx>
+          <Tx x={158} y={228} fill={P.ink2} P={P} opacity={sumV}>keluar</Tx>
+          <Tx x={158} y={282} mono fill={P.ink} halo P={P} opacity={sumV}>{formatId(t.outletC, 1)} °C</Tx>
           {showQ ? <Tx x={158} y={298} mono fill={P.ink2} halo P={P}>{kw(t.qLiquidW)} kW<tspan dy={3} fontSize={9}>th</tspan></Tx> : null}
           <Tx x={208} y={244} anchor="middle" mono fill={P.ink3} P={P} opacity={1 - sumV}>pompa mati</Tx>
 
@@ -210,10 +210,10 @@ export default function RouterDiagram({ view, target, layers, tone = 'page', ele
           {/* router valve */}
           <circle cx={ROUTER.x} cy={ROUTER.y} r={ROUTER.r} fill={P.paper} stroke={P.ink} strokeWidth={1} />
           <Tx x={ROUTER.x} y={ROUTER.y + 5} anchor="middle" mono size={15} weight={500} fill={sumV > 0.05 ? P.ink : P.ink3} P={P}>{view.mode}</Tx>
-          <Tx x={262} y={216} anchor="end" fill={P.ink} P={P}>Router</Tx>
+          <Tx x={262} y={226} anchor="end" fill={P.ink} P={P}>Router</Tx>
 
           {/* bypass label */}
-          <Tx x={484} y={48} fill={P.ink3} P={P}>tidak dipakai</Tx>
+          <Tx x={484} y={48} fill={P.ink3} P={P} opacity={0.5 + 0.5 * Math.min(1, t.vBypass * 20)}>tidak dipakai</Tx>
           <Tx x={484} y={63} mono fill={P.ink2} P={P} opacity={t.vBypass > 0.01 ? 1 : 0.0}>{kw(t.qLiquidW * t.vBypass)} kW<tspan dy={3} fontSize={9}>th</tspan></Tx>
 
           {/* tank */}
@@ -282,8 +282,8 @@ export default function RouterDiagram({ view, target, layers, tone = 'page', ele
         {/* ───────────── Listrik ───────────── */}
         <Lyr id="listrik">
           <path d={PATHS.elec} fill="none" stroke={P.lineStrong} strokeWidth={1} />
-          <path data-flow="elec" d={PATHS.elec} fill="none" stroke={P.ink} strokeWidth={Math.max(0, 1 + 5 * elecW)} opacity={elecW > 0.01 ? 1 : 0} strokeLinejoin="round" />
-          <path d={head(868, E_Y, 'r', 2 + 5 * elecW)} fill={P.ink} opacity={elecW > 0.01 ? 1 : 0} />
+          <path data-flow="elec" d={PATHS.elec} fill="none" stroke={P.ink} strokeWidth={Math.max(0, 1 + 3.5 * elecW)} opacity={elecW > 0.01 ? 1 : 0} strokeLinejoin="round" />
+          <path d={head(868, E_Y, 'r', 2 + 3.5 * elecW)} fill={P.ink} opacity={elecW > 0.01 ? 1 : 0} />
           <path d="M64,545 l-5,9 h4 l-2,8 l7,-10 h-4 z" fill={P.ink} />
           <Tx x={76} y={558} fill={P.ink2} P={P}>
             Listrik PV <tspan fontFamily={P.mono} fill={P.ink}>{kw(t.electricalW)} kW<tspan dy={3} fontSize={9}>e</tspan></tspan>
