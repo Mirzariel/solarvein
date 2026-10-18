@@ -1,0 +1,4 @@
+/* 05 Jalur riset desikan: deliberately plain; only tabular figures for the SVG chart. */
+#desikan svg text {
+  font-variant-numeric: tabular-nums lining-nums;
+}

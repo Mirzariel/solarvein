@@ -1,3 +1,4 @@
+import { resolveHash } from '../sections/nav';
 import gsap from 'gsap';
 import Lenis from 'lenis';
 import { ScrollTrigger } from './gsapConfig';
@@ -44,7 +45,7 @@ export function startSmoothScroll(): () => void {
     if (!a) return;
     const hash = a.getAttribute('href') ?? '';
     if (hash.length < 2) return;
-    const el = document.getElementById(decodeURIComponent(hash.slice(1)));
+    const el = document.getElementById(resolveHash(decodeURIComponent(hash.slice(1)))) ?? document.getElementById(decodeURIComponent(hash.slice(1)));
     if (!el) return;
     e.preventDefault();
     if (window.location.hash !== hash) history.pushState(null, '', hash);

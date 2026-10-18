@@ -1,5 +1,10 @@
 # SolarVein Liquid — Team Contract (lead-owned)
 
+> **v1 (historis).** Dokumen ini menggambarkan konsep lama "dual-mode Cerah/Hujan" (panen panas + pembuangan panas)
+> yang sudah dihapus dari kode pada cutover v2. Disimpan sebagai riwayat; jangan dipakai sebagai kontrak.
+> Kontrak berlaku: [CONTRACT-v2.md](CONTRACT-v2.md). Fisika berlaku: [physics/collector.md](physics/collector.md),
+> [physics/desiccant.md](physics/desiccant.md), [physics/carbon.md](physics/carbon.md). Kode yang dirujuk di sini (`src/state/store.ts`, `simulateDay`, `computeCarbon`, konfigurasi `solarvein-dual`) tidak ada lagi.
+
 Stack (pre-installed, do not change versions): Vite 8, React 19, TypeScript 5.9 strict
 (`noUncheckedIndexedAccess` on), Tailwind CSS v4 (CSS-first, `@import 'tailwindcss'` in `src/index.css`),
 three 0.186 + @react-three/fiber 9 + @react-three/drei 10, recharts 3, zustand 5, vitest 5.

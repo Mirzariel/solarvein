@@ -1,17 +1,18 @@
-import type { SimResult } from '../../sim';
-import { PARTS, partValue, type PartId } from '../../viz3d/parts';
+import { SISTEM_DALAM } from '../../content/sistem';
+import { PARTS, type PartId, type PartValue } from '../../viz3d/parts';
 import type { StageStore } from '../../viz3d/stage';
+import { UnitText } from './UnitText';
 
 /**
- * Mobile / no-WebGL companion of the stage annotations: four plain text buttons (no pills) in one row that
- * scrolls sideways, then the selected part's ONE sentence and ONE live value on the light page.
+ * Mobile / no-WebGL companion of the stage annotations: four plain text buttons (no pills) in a two-column grid,
+ * then the selected part's ONE sentence and ONE live value on the graphite chapter.
  */
-export function PartList({ store, focus, result }: { store: StageStore; focus: PartId | null; result: SimResult }) {
+export function PartList({ store, focus, valueOf }: { store: StageStore; focus: PartId | null; valueOf: (id: PartId) => PartValue }) {
   const sel = PARTS.find((p) => p.id === focus) ?? null;
-  const v = sel ? partValue(sel.id, result) : null;
+  const v = sel ? valueOf(sel.id) : null;
   return (
     <div className="mt-4">
-      <div role="group" aria-label="Bagian kolektor" className="grid grid-cols-2 gap-x-6">
+      <div role="group" aria-label={SISTEM_DALAM.listLabel} className="grid grid-cols-2 gap-x-6">
         {PARTS.map((p) => {
           const on = p.id === focus;
           return (
@@ -35,11 +36,11 @@ export function PartList({ store, focus, result }: { store: StageStore; focus: P
           <>
             <p className="max-w-[48ch] text-body text-ink-2">{sel.sentence}</p>
             <p className="mono mt-1 text-mono-s text-ink-2">
-              {v.symbol} <span className="font-medium text-ink">{v.value}</span> {v.unit}
+              {v.symbol} <span className="font-medium text-ink">{v.value}</span> <UnitText unit={v.unit} />
             </p>
           </>
         ) : (
-          <p className="text-body text-ink-3">Pilih satu bagian untuk melihat perannya.</p>
+          <p className="text-body text-ink-3">{SISTEM_DALAM.emptyPick}</p>
         )}
       </div>
     </div>

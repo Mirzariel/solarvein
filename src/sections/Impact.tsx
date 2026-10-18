@@ -1,135 +1,132 @@
-import gsap from 'gsap';
-import { useRef, useState } from 'react';
-import { scrollToTarget, useScrollScene } from '../motion';
-import { presetPair } from '../state';
-import { Disclosure, Picture, SectionIndex, formatId } from '../ui';
-import { Enso } from './impact/Enso';
-import { ImpactFactors, ImpactLedger, ImpactLimits } from './impact/Details';
-import { Scaler } from './impact/Scaler';
+import { useDeferredValue, useState } from 'react';
+import { ChartCard } from '../charts/ChartCard';
+import { Waterfall } from '../charts/impact/Waterfall';
+import { LABELS, type BaselineId } from '../sim/system';
+import { useBaselines, useSystem, useYear } from '../state/systemSelectors';
+import { Disclosure, Evidence, SectionIndex, SegmentedControl, cx, formatId, type SegmentedOption } from '../ui';
+import { BaselineTable } from './impact/BaselineTable';
+import { EnergySummary } from './impact/EnergySummary';
+import { HotelScaler, PresetSwitch } from './impact/HotelScaler';
+import { Sensitivity } from './impact/Sensitivity';
+import { B4Breakeven, Verdict } from './impact/Verdict';
+import { idrSigned, paybackCells, tonSigned } from './impact/format';
+import './impact/impact.css';
+
+const BASELINES: readonly SegmentedOption<BaselineId>[] = (['B1', 'B2', 'B3', 'B4'] as const).map((id) => ({
+  value: id,
+  label: id,
+  description: LABELS.baseline[id],
+}));
+
+/** Disclosure bodies that hold tables: wider than the 64 ch prose box, never wider than the viewport. */
+const WIDE = 'w-[min(64rem,calc(100vw-2rem))]';
 
 /**
- * Dampak: back into daylight. The paper rises over the interlude with rounded shoulders; the heading is followed by
- * the one picture that matters here, the sunny-preset energy split, as three large instrument numbers that count up
- * once and a single proportional bar under them. Then a bright rooftop photograph with the "Bayangkan N atap" scaler
- * floating over its lower edge. All numbers come from simulate() on the preset; the limits stay one click away.
+ * 06 Dampak. L1 is one dark beat: a single sentence and the net CO₂e of the chosen baseline as the hero number
+ * (B2 by default, the strongest comparator), with the money result beside it so a carbon/money split is visible.
+ * Below: the waterfall for that baseline; everything else is behind disclosures. All numbers come from the hooks.
  */
 export default function Impact() {
-  const { dual } = presetPair('sunny');
-  const lost = Math.max(0, dual.solarInputW - dual.electricalW - dual.usefulHeatW);
-  const [limitsOpen, setLimitsOpen] = useState(false);
-  const root = useRef<HTMLElement>(null);
-
-  const share = (w: number) => w / dual.solarInputW;
-  const rows = [
-    { key: 'in', label: 'Cahaya yang masuk', value: dual.solarInputW, tone: 'text-ink-3', sub: '' },
-    { key: 'el', label: 'Listrik PV (sebelum pompa)', value: dual.electricalW, tone: 'text-ink', sub: 'e' },
-    { key: 'th', label: 'Jadi air hangat', value: dual.usefulHeatW, tone: 'text-heat-ink', sub: 'th' },
-  ] as const;
-
-  useScrollScene(root, ({ desktop }) => {
-    root.current?.querySelectorAll<HTMLElement>('[data-count]').forEach((el) => {
-      const to = Number(el.dataset.count);
-      const o = { v: 0 };
-      gsap.to(o, {
-        v: to,
-        duration: 1.6,
-        ease: 'power3.out',
-        scrollTrigger: { trigger: '[data-stats]', start: 'top 80%', once: true },
-        onUpdate: () => {
-          el.textContent = formatId(o.v, 0);
-        },
-        onComplete: () => {
-          el.textContent = formatId(to, 0);
-        },
-      });
-    });
-    gsap.fromTo('[data-bar] > span', { scaleX: 0 }, { scaleX: 1, transformOrigin: '0 50%', duration: 1.4, ease: 'power3.out', stagger: 0.12, scrollTrigger: { trigger: '[data-stats]', start: 'top 75%', once: true } });
-    gsap.fromTo('[data-photo]', { yPercent: -8 }, { yPercent: 8, ease: 'none', scrollTrigger: { trigger: '[data-photo-frame]', start: 'top bottom', end: 'bottom top', scrub: true } });
-    gsap.fromTo('[data-float]', { y: desktop ? 120 : 40 }, { y: 0, ease: 'none', scrollTrigger: { trigger: '[data-photo-frame]', start: 'top 80%', end: 'bottom 60%', scrub: 0.6 } });
-  });
-
-  const openLimits = () => {
-    setLimitsOpen(true);
-    requestAnimationFrame(() => scrollToTarget('#dampak-asumsi', { offset: -120 }));
-  };
+  const data = useBaselines();
+  const sys = useSystem();
+  const year = useYear(sys.controller.strategy);
+  const [pick, setPick] = useState<BaselineId>('B2');
+  // The sensitivity grid runs 18 carbon recomputes: mount it only once someone opens it.
+  const [sensOpened, setSensOpened] = useState(false);
+  const ledger = data.ledgers[pick];
+  const eco = data.economics[pick];
+  const cells = paybackCells(eco.paybackYears);
+  const stale = useDeferredValue(sys) !== sys;
+  const standby = ledger.rows.find((r) => r.kind === 'standby');
 
   return (
-    <section
-      ref={root}
-      id="dampak"
-      aria-labelledby="dampak-title"
-      className="relative z-10 -mt-10 scroll-mt-14 rounded-t-[32px] bg-paper pt-24 shadow-[0_-40px_80px_-40px_rgb(17_18_20/0.4)] lg:-mt-16 lg:rounded-t-[48px] lg:pt-36"
-    >
-      <div className="page-wrap">
-        <SectionIndex n="03" label="Dampak" />
-        <h2 id="dampak-title" className="mt-5 max-w-[16ch] text-h2 text-ink">
-          Dari 1 panel, dua hasil yang bisa dipakai.
-        </h2>
-
-        <div data-stats className="mt-16 lg:mt-24">
-          <dl className="grid grid-cols-1 gap-10 sm:grid-cols-3 sm:gap-8">
-            {rows.map((r) => (
-              <div key={r.key} className="border-t border-line pt-5">
-                <dt className="text-body text-ink-2">{r.label}</dt>
-                <dd className={`m-0 mt-3 flex items-baseline gap-2 ${r.tone}`}>
-                  <span data-count={Math.round(r.value)} className="num text-stat">
-                    {formatId(r.value, 0)}
-                  </span>
-                  <span className="num text-readout-m text-ink-3">
-                    W{r.sub ? <sub className="text-[0.6em]">{r.sub}</sub> : null}
-                  </span>
-                </dd>
-                {r.key !== 'in' ? (
-                  <p className="mt-2 text-small text-ink-3">
-                    <span className="num">{formatId(share(r.value) * 100, 0)}%</span> dari cahaya yang masuk
-                  </p>
-                ) : (
-                  <p className="mt-2 text-small text-ink-3">siang cerah, satu panel</p>
-                )}
-              </div>
-            ))}
-          </dl>
-
-          {/* one proportional bar: electricity · useful heat · the rest (lost or not absorbed) */}
-          <div data-bar aria-hidden="true" className="mt-12 flex h-3 w-full gap-1 overflow-hidden rounded-full">
-            <span className="block rounded-full bg-ink" style={{ flexGrow: share(dual.electricalW) }} />
-            <span className="block rounded-full bg-heat" style={{ flexGrow: share(dual.usefulHeatW) }} />
-            <span className="block rounded-full bg-line-strong" style={{ flexGrow: share(lost) }} />
+    <section id="dampak" aria-labelledby="dampak-judul" className="impact relative scroll-mt-14 overflow-x-clip bg-paper">
+      {/* the one dark beat of the back half */}
+      <div data-dark-band className="bg-stage-0 text-stage-ink">
+        <div className="page-wrap py-20 lg:py-28">
+          <SectionIndex n="06" label="Dampak" inverse />
+          <div className="grid-12 mt-8 items-end gap-y-12">
+            <h2
+              id="dampak-judul"
+              className="col-span-12 max-w-[26ch] text-[28px] font-medium leading-[34px] tracking-[-0.02em] text-stage-ink sm:text-[36px] sm:leading-[42px] lg:col-span-7 lg:text-[44px] lg:leading-[50px]"
+            >
+              Pembanding terkuat (B2, B4) bisa menang; hasilnya ditampilkan apa adanya.
+            </h2>
+            <div className="col-span-12 lg:col-span-5">
+              <p
+                aria-live="polite"
+                aria-label={`CO₂e bersih ${tonSigned(ledger.netKgPerYear, 2)} ton per tahun dibanding ${pick}`}
+                className={cx('num m-0 text-number-xl text-stage-electric transition-opacity duration-200', stale && 'opacity-50')}
+              >
+                {tonSigned(ledger.netKgPerYear, 2)}
+              </p>
+              <p className="num m-0 mt-3 text-mono-s text-stage-ink-2">
+                t CO₂e/tahun bersih dibanding {pick} <Evidence tag="simulasi" inverse label />
+              </p>
+              <p className="num m-0 mt-2 text-mono-s text-stage-ink-2">
+                Biaya energi <span className="whitespace-nowrap text-stage-ink">{idrSigned(eco.annualSavingIdr)}</span>/tahun ·{' '}
+                {cells.every((c) => c.years === null) ? 'tidak balik modal' : `balik modal ${cells[1]?.text ?? '—'} tahun`}
+              </p>
+            </div>
           </div>
-          <p className="mt-4 text-small text-ink-3">
-            Sisanya, <span className="num">{formatId(lost, 0)}</span> W, hilang ke udara, terpantul, atau tidak terserap. Air masuk{' '}
-            <span className="num">{formatId(dual.inputs.inletC, 0)}</span> °C, dan panasnya hanya berguna bila ada yang memakai air hangat itu.
-          </p>
+          <div className="mt-12 flex flex-wrap items-center gap-x-5 gap-y-3 border-t border-stage-line pt-6">
+            <span className="text-small text-stage-ink-2">Dibanding</span>
+            <SegmentedControl<BaselineId> ariaLabel="Pembanding" options={BASELINES} value={pick} onChange={setPick} size="sm" tone="stage" />
+            <span className="text-small text-stage-ink-2">{LABELS.baseline[pick]}</span>
+          </div>
         </div>
       </div>
 
-      {/* bright rooftop band + the floating scaler */}
-      <div className="page-wrap mt-24 lg:mt-36">
-        <div data-photo-frame className="relative h-[clamp(320px,62svh,640px)] overflow-hidden rounded-[20px] lg:rounded-[28px]">
-          <div data-photo className="absolute inset-x-0 -inset-y-[10%] will-change-transform">
-            <Picture fill name="roof-aisle" alt="Ilustrasi konteks: deretan panel surya di atap bangunan industri pada siang cerah." position="50% 60%" />
+      <div className="page-wrap py-16 lg:py-24">
+        <ChartCard title="Aliran CO₂e per tahun">
+          <div className="mb-8">
+            <PresetSwitch />
           </div>
-          <div aria-hidden="true" className="absolute inset-0 bg-[linear-gradient(180deg,rgb(246_245_242/0)_40%,rgb(246_245_242/0.0)_70%,rgb(17_18_20/0.25)_100%)]" />
-        </div>
-        <div data-float className="relative z-10 mx-auto -mt-28 w-[calc(100%-2rem)] rounded-[24px] border border-line/70 bg-surface p-6 shadow-3 sm:-mt-40 sm:w-[calc(100%-4rem)] sm:p-8 lg:-mt-56 lg:w-[calc(100%-8rem)] lg:p-12">
-          <Scaler onOpenAssumptions={openLimits} />
-        </div>
-      </div>
+          <div className={cx('transition-opacity duration-200', stale && 'opacity-50')}>
+            <Waterfall ledger={ledger} baselineName={`${pick} (${LABELS.baseline[pick]})`} showLabels={false} />
+          </div>
+        </ChartCard>
 
-      <div className="page-wrap pb-24 pt-12 sm:pt-16 lg:pb-32">
-        <div id="dampak-asumsi" className="max-w-4xl">
-          <Disclosure title="Apa yang belum dihitung" level={3} open={limitsOpen} onOpenChange={setLimitsOpen}>
-            <ImpactLimits />
-            <div className="mt-6 border-t border-line pt-5">
-              <p className="mb-3 text-label text-ink">Konteks iklim: El Niño dan La Niña</p>
-              <Enso />
+        <div className="mt-12 lg:mt-16">
+          <Disclosure title="Ringkasan per pembanding">
+            <Verdict text={data.verdict} />
+            <B4Breakeven breakEven={data.b4BreakEvenFraction} assumed={sys.carbon.condenserRecoveryFraction} />
+          </Disclosure>
+          <Disclosure title="Karbon dan biaya per pembanding">
+            <div className={WIDE}>
+              <BaselineTable data={data} selected={pick} onSelect={setPick} lifetimeYears={sys.carbon.lifetimeYears} />
             </div>
           </Disclosure>
-          <Disclosure title="Faktor emisi dan cara hitung" level={3}>
-            <ImpactFactors />
-            <div className="mt-6 border-t border-line pt-5">
-              <ImpactLedger />
+          <Disclosure title="Energi per tahun">
+            <div className={WIDE}>
+              <EnergySummary year={year} data={data} />
             </div>
+          </Disclosure>
+          <Disclosure title="Skala hotel">
+            <div className={WIDE}>
+              <HotelScaler data={data} />
+            </div>
+          </Disclosure>
+          <Disclosure title="Sensitivitas" onOpenChange={(o) => o && setSensOpened(true)}>
+            {sensOpened ? <Sensitivity /> : null}
+          </Disclosure>
+          <Disclosure title="Batas dan cara membaca">
+            <ul className="m-0 list-none space-y-2.5 p-0">
+              <li>Penghematan air panas bergantung pada pemanas yang digantikan: LPG, tahanan listrik, atau pompa kalor.</li>
+              <li>Angka bersih sudah dikurangi listrik pompa dan pengendali serta emisi tertanam, dan tidak memuat jalur desikan (hipotesis riset).</li>
+              <li>
+                Emisi tertanam dibagi umur pakai <span className="num">{formatId(sys.carbon.lifetimeYears, 0)}</span> tahun.
+                {standby ? (
+                  <>
+                    {' '}
+                    Rugi diam tangki <span className="num">{formatId(standby.energy?.kWhTh ?? 0, 0)}</span> kWh<sub>th</sub> sudah ada di dalam panas surya terpakai, jadi tidak dihitung dua kali.
+                  </>
+                ) : null}
+              </li>
+              <li>Pembanding B2 atau B4 bisa lebih unggul; kalimat vonis dibuat dari angka, tanpa pemenang bawaan.</li>
+              <li>Layanan hotel tidak bergantung pada matahari: pemanas cadangan dan AC lama selalu siap; yang turun saat malam dan hujan panjang hanya penghematannya.</li>
+              <li>Biaya, tarif, dan harga pasang memakai asumsi rekayasa; belum ada kutipan harga.</li>
+            </ul>
           </Disclosure>
         </div>
       </div>

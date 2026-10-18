@@ -1,64 +1,49 @@
-import { useSimResult } from '../../state/selectors';
-import { Disclosure, InfoIcon, WarningIcon } from '../../ui';
+import { DESICCANT_STATUS, LABELS } from '../../sim/system';
+import { SISTEM } from '../../content/sistem';
+import { useStep } from '../../state/systemSelectors';
+import { Disclosure, EvidenceDot, cx } from '../../ui';
 import { LiveReadout } from './LiveReadout';
-import { describeRegime } from './regime';
 
 /**
- * L2 "Detail": the rest of the instruments (all live on the visual frame), every advisory verbatim from the model
- * (the verbatim not-beneficial sentence is the statement itself, so it is not repeated), and the rule that decides
- * the heat direction. Rendered on the dark band through the stage colour scope.
+ * L2 "Detail": the rest of the instruments of the current step, the three controller rules with the active one
+ * marked, the desiccant status, and why the mode letter is computed. Everything reads the v2 DayStep.
  */
 export function DetailPanel() {
-  const committed = useSimResult();
-  const statement = describeRegime(committed);
-  const advisories = committed.advisories.filter(
-    (a) => !(statement.key === 'not-beneficial' && a.code === 'REJECTION_NOT_BENEFICIAL'),
-  );
-
+  const step = useStep();
+  const active = step.router.mode;
   return (
-    <Disclosure title="Detail" hint="Suhu, pompa, catatan sistem" level={3}>
-      <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 lg:grid-cols-2">
-        <LiveReadout label="Cairan masuk" select={(r) => r.inletC} digits={1} unit="°C" kind="temperature" size="sm" tone="page" />
-        <LiveReadout label="Cairan keluar" select={(r) => r.outletC} digits={1} unit="°C" kind="temperature" size="sm" tone="page" />
-        <LiveReadout label="Suhu sel" select={(r) => r.cellC} digits={1} unit="°C" kind="temperature" size="sm" tone="page" />
-        <LiveReadout label="Sinar matahari" select={(r) => r.inputs.irradiance} unit="W/m²" kind="neutral" size="sm" tone="page" />
-        <LiveReadout label="Daya pompa" select={(r) => r.pumpW} digits={1} unit="W" kind="electrical" size="sm" tone="page" />
-        <LiveReadout label="Listrik bersih" select={(r) => r.netElectricalW} unit="W" kind="electrical" size="sm" tone="page" sublabel="PV dikurangi pompa" />
+    <Disclosure title={SISTEM.detail.title} hint={SISTEM.detail.hint} level={3}>
+      <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
+        <LiveReadout label="Cairan masuk" idle select={(s) => s.collector.inletC} digits={1} unit="°C" kind="temperature" size="sm" />
+        <LiveReadout label="Cairan keluar" idle select={(s) => s.collector.outletC} digits={1} unit="°C" kind="temperature" size="sm" />
+        <LiveReadout label="Suhu sel" select={(s) => s.collector.cellC} digits={1} unit="°C" kind="temperature" size="sm" />
+        <LiveReadout label="Sinar di bidang panel" select={(s) => s.climate.irradiance} unit="W/m²" kind="neutral" size="sm" />
+        <LiveReadout label="Daya pompa" select={(s) => s.collector.pumpW / 1000} digits={2} unit="kW" kind="electrical" size="sm" />
+        <LiveReadout label="Tangki: isi" select={(s) => s.tank.soc * 100} unit="%" kind="neutral" size="sm" sublabel={`atas ${Math.round(step.tank.topC)} °C`} />
       </div>
 
-      {advisories.length > 0 ? (
-        <ul className="mt-6 space-y-3" aria-label="Catatan sistem">
-          {advisories.map((a) => (
-            <li key={a.code} className="flex items-start gap-3 text-small">
-              <span className="mt-0.5 shrink-0 text-ink-2">
-                {a.severity === 'info' ? <InfoIcon size={16} /> : <WarningIcon size={16} />}
-              </span>
+      <div className="mt-6 border-t border-line pt-4">
+        <p className="text-label text-ink">{SISTEM.computedLabel}</p>
+        <p className="mt-2 text-small">{SISTEM.note}</p>
+        <ul className="mt-3 space-y-2 text-small">
+          {SISTEM.rules.map((r) => (
+            <li key={r.k} className={cx('flex gap-3', r.k === active ? 'text-ink' : 'text-ink-2')} aria-current={r.k === active ? 'true' : undefined}>
+              <span className={cx('num w-4 shrink-0', r.k === active && 'text-heat-ink')}>{r.k}</span>
               <span>
-                <span className="sr-only">{a.severity === 'info' ? 'Info' : a.severity === 'warning' ? 'Peringatan' : 'Kritis'}: </span>
-                {a.message}
+                <span className="sr-only">{LABELS.mode[r.k]}. </span>
+                {r.t}
               </span>
             </li>
           ))}
         </ul>
-      ) : null}
-
-      <div className="mt-6 border-t border-line pt-4">
-        <p className="text-label text-ink">Kapan arah panas berbalik</p>
-        <dl className="mt-2 space-y-2 text-small">
-          <div>
-            <dt className="inline text-ink">Panen panas: </dt>
-            <dd className="inline">sel lebih panas dari cairan dan ada beban panas.</dd>
-          </div>
-          <div>
-            <dt className="inline text-ink">Buang panas: </dt>
-            <dd className="inline">cairan jauh lebih hangat dari sel dan ada sumber panas yang nyata.</dd>
-          </div>
-          <div>
-            <dt className="inline text-ink">Selain itu: </dt>
-            <dd className="inline">panas tidak dihitung sebagai manfaat (tanpa beban atau sumber panas, atau pertukarannya terlalu kecil). Bila pembuangan tidak sepadan: Pendinginan tidak menguntungkan pada kondisi ini.</dd>
-          </div>
-        </dl>
       </div>
+
+      <p className="mt-6 flex items-center gap-2 border-t border-line pt-4 text-small">
+        <EvidenceDot tag="hipotesis" />
+        <span>
+          Desikan (bahan penyerap uap air): <span className="text-ink">{DESICCANT_STATUS}</span>.
+        </span>
+      </p>
     </Disclosure>
   );
 }

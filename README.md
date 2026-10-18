@@ -1,15 +1,29 @@
-# SolarVein Liquid
+# SolarVein
 
-**Satu panel. Dua arah panas.** An interactive engineering experience for a dual-mode
-photovoltaic-thermal (PVT) collector: the same PV panel and rear liquid heat exchanger either
-**collect** heat (sunny: sun → PV/absorber → liquid → useful heat load) or **reject** heat (a warm
-process-water loop → liquid → panel → air, sky and rain) — depending on the temperatures and the
-thermal load, never on a mode flag.
+**Adaptive Solar Thermal Recovery for Low-Carbon Hospitality** — an interactive engineering demo for
+HORIZON 2026 (KAMASE UGM national essay competition; final presentation 20 November, Yogyakarta).
 
-SolarVein is a conceptual implementation of established PVT physics, not a new discovery. The site is an
-**educational conceptual simulation** — not CFD, not field-validated, not a certified performance tool.
+> Status: **sedang dibangun (v2)**. This is a development version of the HORIZON 2026 entry; where it differs from
+> the submitted essay, the page says so. All numbers are simulation results. There is no measured data yet.
 
-All user-facing copy is Indonesian.
+Idea: a liquid PV/T collector on a hotel roof makes electricity and heat at once. A **value-ranked adaptive thermal
+router** sends that heat where it is worth most:
+
+1. **Hotel hot-water preheating** (primary, quantified);
+2. **Desiccant regeneration** for AC dehumidification (a research hypothesis, "Hipotesis riset · belum divalidasi",
+   evaluated honestly with the net HVAC balance, which can end as "tidak layak");
+3. a **buffer tank** (carry-over to evening, morning and prolonged rain);
+4. **bypass** when nothing is worth the heat.
+
+The hotel never depends on the sun: the existing water heater and AC are always the backup, so only the savings
+change at night or in long rain. The KPI is **net CO₂e avoided** (with energy and economics) against four baselines
+at equal service: **B1** conventional hotel, **B2** PV + heat-pump water heater + efficient HVAC, **B3** PV/T hot
+water only, **B4** PV + AC-condenser heat recovery. B2 or B4 may win; the page says so from the numbers.
+
+The earlier "SolarVein Liquid" concept (one panel that collects heat when sunny and rejects heat when rainy,
+Cerah/Hujan) survives only as an "evolusi ide" note in the Validasi section.
+
+All user-facing copy is Indonesian (EYD V); references are APA 7.
 
 ## Run it
 
@@ -23,7 +37,7 @@ npm install
 npm run dev
 ```
 
-Then open the printed URL (the project's launch config uses port 5190).
+Open the printed URL (the project's launch config uses port 5190).
 
 | Script | What it does |
 |---|---|
@@ -31,109 +45,91 @@ Then open the printed URL (the project's launch config uses port 5190).
 | `npm run build` | Strict type-check (`tsc -b`) + production build to `dist/` |
 | `npm run preview` | Serve the production build |
 | `npm run typecheck` | Type-check only |
-| `npm test` | Vitest: physics model, carbon, day profile, store, motion engine, review regressions |
-| `npm run qa` | Playwright visual + functional QA (see below) |
+| `npm test` | Vitest: collector model, system modules, contract, store, motion engine |
+| `npm run gate` | `tsc -b && vitest run && vite build` — must be green before every merge |
+| `npm run qa` | Playwright visual + functional QA (`scripts/qa/`) |
+
+Presentation mode: `?presentasi=1` (keys ←/→, 1–8, R reset, L assumptions; `?skenario=terik|lembap|malam&jam=13`).
+Export figures for the infographic/PPT: `/export?static=1`.
 
 ## What's on the page
 
-| Section | Purpose |
-|---|---|
-| Pembuka (`#awal`) | Cinematic opening photo + the one idea |
-| 01 Pengalaman (`#pengalaman`) | The interactive 3D collector on a roof; Cerah/Hujan switch; live statement and L1 readouts |
-| 02 Di dalam SolarVein (`#di-dalam`) | Exploded inspection stage with four clickable parts and live values |
-| Dampak (`#dampak`) | "Jika N atap…" scenario scaler, computed from the simulation, incremental vs. conventional PV |
-| 03 Lab rekayasa (`#lab`) | Every input as a precision slider, live schematic, energy flow, temperature profile, day history, engineering details on demand |
-| 04 Perbandingan kinerja (`#perbandingan`) | Conventional PV vs. PV + liquid cooling vs. SolarVein, with an honest computed verdict |
-| Penutup (`#penutup`) | Closing line |
+| # | Section | Purpose |
+|---|---|---|
+| – | `#awal` | Opening: hotel rooftop with an array, the one idea |
+| 01 | `#masalah` | Two loads of a tropical hotel: hot water and humid air, with cited numbers |
+| 02 | `#sistem` | 3D collector, pull-back to the hotel roof, A/B/C switch; `#sistem-dalam` exploded walk-through |
+| 03 | `#router` | Cara kerja: the router diagram (thermal, electrical, air layers) |
+| 04 | `#sehari` | Sehari di hotel: 24 h scrubber, tank fill, four strategies, area sweep, "3 hari hujan" |
+| 05 | `#desikan` | Jalur riset desikan: regeneration sweep, net HVAC ledger, honest verdict |
+| 06 | `#dampak` | Net CO₂e waterfall vs B1–B4, energy, payback, hotel scaler |
+| 07 | `#lab` | All inputs, live schematic, instrumentation, assumptions with sources |
+| 08 | `#validasi` | Roadmap, KPIs, ranked risks, evidence legend, evolusi ide, references (`#pustaka`) |
+| – | `#penutup` | Closing |
 
-Progressive disclosure: level 1 (regime, heat direction, W_e, W_th) is always visible; level 2 (inlet/outlet,
-pump, advisories) on interaction; level 3 (equations, assumptions, coefficients, carbon ledger, limitations) in
-disclosures.
+Progressive disclosure: L1 always visible (about 45 words per section), L2 on interaction, L3 in disclosures and the Lab.
+Old hashes (`#pengalaman`, `#perbandingan`) are aliased. Below 1024 px, with reduced motion or without WebGL,
+A/B/C tabs and a vertical layout replace the pinned scenes.
 
 ## Architecture (short)
 
 ```
 src/
-  sim/        Pure physics (no React/DOM): model.ts, presets.ts, day.ts, carbon.ts, assumptions.ts, types.ts (contract)
-  state/      zustand store, memoised selectors, impact (Dampak) calculations
-  motion/     Weather engine: GSAP timeline interpolates the sim INPUTS, simulate() per frame → VisualFrame
-  viz3d/      React Three Fiber stage: collector, roof context, studio lighting, flow, labels, Schematic (SVG)
-    effects/  Heat arrows, rain, sunlight, electrical pulses, ambient mood — all driven by the VisualFrame
-  charts/     Energy flow (Sankey), temperature profile, day history, comparison bars, verdict logic
-  ui/         Design-system primitives (SegmentedControl, Slider, Readout, Disclosure, Picture, …)
-  sections/   Page sections in order (Opening, Hero, Inside, Impact, Lab, Comparison, Closing, header/footer)
+  sim/            Pure TypeScript (no React/DOM). Collector: model.ts (simulate), presets.ts, types.ts
+    system/       v2 hotel system: contract.ts (public interfaces), psychro, hotel, tank, dhw, heatpump,
+                  router, day (24 h / 72 h, strategies, area sweep), desiccant, carbon, economics, references
+    assumptions/  documented assumptions per module, each with an evidence tag
+  state/          zustand slices, memoised selectors, impact calculations
+  motion/         Weather engine: interpolates sim INPUTS, runs the sim per frame -> VisualFrame
+  viz3d/          React Three Fiber stage: collector on a hotel roof (one WebGL canvas)
+  charts/         Day, desiccant, ledger/waterfall, baselines, energy flow
+  ui/             Design-system primitives
+  sections/       Page sections in order; router/tank/desiccant are flat instrument SVGs
 ```
 
-Data flow: `inputs → clampInputs → simulate() → selectors / weather engine → views`. Views never compute
-physics. During a Cerah↔Hujan change the engine interpolates the inputs (staggered, ~0.75–1.1 s) and runs
-`simulate()` every frame (~0.02 ms), so every intermediate visual is a real computed state; heat arrows fade
-out through q = 0 and reappear reversed only when the computed sign flips.
+Data flow: `inputs -> simulate() / simulateSystem() -> selectors / engine -> views`. Views never compute physics.
+Modes A/B/C are controller states computed from irradiance, collector and tank temperature, and demand, not clock labels.
+Contract: [docs/CONTRACT-v2.md](docs/CONTRACT-v2.md) and `src/sim/system/contract.ts`. Older docs
+([ARCHITECTURE](docs/ARCHITECTURE.md), [PHYSICS](docs/PHYSICS.md), [DESIGN_SYSTEM](DESIGN_SYSTEM.md),
+[MOTION_SYSTEM](MOTION_SYSTEM.md)) describe v1 until the cutover commit.
 
-More: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md),
-[MOTION_SYSTEM.md](MOTION_SYSTEM.md), [docs/PHYSICS.md](docs/PHYSICS.md).
+## Physics and accounting, in honest terms
 
-## Physics model and assumptions
+- **η_th is never constant.** It comes from the collector model as a function of inlet (tank/return) temperature and
+  irradiance. The illustrative 5 m² / 30 % / 18 % numbers appear only as a back-of-envelope check.
+- **Router:** Σ allocation (hot water + desiccant + tank + bypass) = heat in the liquid, with bypass explicit.
+  Static value-per-kWh_th ranking with hysteresis; it is not "carbon-aware" (Indonesia has no time-resolved grid EF).
+- **Tank:** two nodes, first-law balance closes over 24 h. Standby loss is shown. Potable water is never stored at
+  25–45 °C (closed buffer loop + external heat exchanger; backup keeps the top ≥ 60 °C).
+- **Desiccant:** adsorption is roughly isenthalpic, so "latent removed minus heat" is not the benefit. Net =
+  reference coil electricity − (after-cooler + fans on both streams + pump + PV penalty from a hotter collector).
+  The verdict (layak / marginal / tidak layak) is computed, never asserted.
+- **Units:** kWh_th, kWh_e and kWh_fuel are distinct types; they are never added without a displayed factor.
+- **Carbon:** weighted day types for one named city (not a snapshot × hours), embodied emissions never zero for any
+  case, zero collector area reproduces B1. Rainy days are not zero-sun; at night there is no collection.
+- **Service:** unmet demand is 0 in every scenario. In 3 rainy days net CO₂e can be worse than B1, and the page says so.
 
-Steady-state, single lumped panel node solved by bisection on the energy balance
-`S − P_e − Q_front − Q_rain − Q_back − Q_liquid = 0`, with:
-
-- `P_e = G·A·η_ref·[1 − β(T_cell − 25)]`, τα = 0.88.
-- Front losses act on the solved glass-surface temperature through a laminate resistance U_cg ≈ 200 W/m²K;
-  Watmuff wind convection `h = 2.8 + 3.0·v`; exact radiation to an effective sky temperature.
-- Rain: sensible heat only, `h_rain = ε·(R/3600)·c_w` with ε = 0.5 (uncertainty band 0.3–1.0 shown in the Lab).
-  Evaporation is neglected, which probably understates rain cooling. **Rain alone does not create useful cooling.**
-- Liquid side: ε-NTU with `NTU = U_pf·A/(ṁ·c_p)`; `Q_liquid = ε·ṁ·c_p·(T_panel − T_in)`.
-  Sign convention: `+` = heat into the liquid (harvest), `−` = heat out of the liquid to panel and environment
-  (rejection). The liquid always flows inlet → outlet.
-- Pump: `P = ΔP·V̇/η + 1 W`, ΔP ∝ V̇².
-- Rejection is counted only when a real warm source exists and is worth more than its pump and PV penalty against
-  the displaced cooling equipment. The default baseline is a fan-driven dry cooler (COP 30), **not** a chiller.
-  Otherwise the page shows "Pendinginan tidak menguntungkan pada kondisi ini."
-- Carbon: incremental vs. conventional PV, with configurable emission factors, hours and embodied emissions (never zero).
-
-Sanity numbers (presets, 1.7 m² module):
-
-| | Cerah (harvest) | Hujan (rejection, warm loop) |
-|---|---|---|
-| T_cell | 45,9 °C (stagnant 74,6; conventional PV 56,1) | 41,2 °C |
-| T_in → T_out | 40 → 45,0 °C | 45 → 42,3 °C |
-| Q_liquid | +687 W_th | −550 W_th (rain ≈ ¼ of it) |
-| P_e | 284 W_e | 38,5 W_e |
-| Net cooling benefit | — | ≈ +7,8 W_e vs. dry cooler incl. PV penalty (≈ +149 W_e only if a chiller were displaced) |
-
-Conventional PV wins in realistic cases (low irradiance, no heat load, high pump ΔP), and the comparison
-section says so.
-
-### Limitations
-
-Single-node steady state (no thermal mass except in the illustrative day profile); rain heat transfer is an
-unvalidated approximation; the glass-front laminate behaves like an unglazed-class PVT (a glazed, air-gap
-collector would reject roughly 80–85 % less); no low-light derate; no CFD, no field data. Full list:
-[docs/PHYSICS.md §9](docs/PHYSICS.md) and the Lab's "Rincian rekayasa".
-
-**Next validation steps:** an instrumented prototype (T_in/T_out, flow, irradiance, cell temperature), ISO 9806
-thermal and IEC 61215 electrical testing, rain heat-transfer measurements on a wet glass laminate, long-term
-monitoring of a real warm-water loop.
+Limitations: simulation only, no field data; an illustrative 100-room hotel and preset weather; desiccant and
+heat-pump-source options are hypotheses; small differences between cases are not meaningful. Next validation steps are
+in the Validasi section (5-phase roadmap, ranked risks, measurement plan).
 
 ## Quality checks
 
-- `npm test`: physics invariants (energy residual < 0.5 W over a > 10 000-case grid, no NaN, monotonicity, sign
-  and flow-direction invariants, the not-beneficial state), carbon ledger, impact scaler, motion engine
-  (monotone transitions, no overshoot), and independent reviewers' regression tests in `src/sim/review/`.
-- `npm run qa -- --url http://localhost:5190 --widths 1440,1280,768,390,360 --states sunny,rainy --sections --checks`:
-  real-browser screenshots (system Chrome/Edge via `playwright-core`; WebGL on the real GPU by default), console
-  errors, overflow, broken numbers, rapid mode switching, slider extremes, dead controls.
-- Audit trail: [docs/audit/](docs/audit/) (before/after screenshots, independent reviews), [DESIGN_AUDIT.md](DESIGN_AUDIT.md).
+- `npm run gate` on every merge. New invariants: router sum = Q_liquid, tank closure, psychrometric round-trip,
+  desiccant mass balance, night = no collection, ledger sums, zero area = B1, unit brands, ordering regression of heat uses.
+- `npm run qa -- --url http://localhost:5190 --widths 1440,1280,768,390,360 --sections --checks`: real-browser screenshots,
+  console errors, overflow, broken numbers, rapid switching, slider extremes, dead controls. Also check 1280×720 at 125 %.
+- Copy audits: word count, evidence tags, EYD V, every number cited or tagged.
 
 ## Project skills and agents
 
-Built with Claude Code subagents (Sonnet). Role definitions live in `.claude/agents/`; project skills in
-`.claude/skills/` — the four SolarVein skills (`sv-visual-identity`, `sv-content-reduction`,
-`sv-physics-validation`, `sv-adversarial-qa`) plus installed third-party skills (frontend-design,
-web-design-guidelines, threejs-*, gsap-*; see `skills-lock.json`).
+Built with Claude Code subagents. Role definitions in `.claude/agents/`; project skills in `.claude/skills/`: the four
+SolarVein skills (`sv-visual-identity`, `sv-content-reduction`, `sv-physics-validation`, `sv-adversarial-qa`) plus
+installed third-party skills (frontend-design, web-design-guidelines, threejs-*, gsap-*; see `skills-lock.json`).
 
 ## Credits
 
-Video and stills: Mixkit (Mixkit Free License) — see [docs/CREDITS.md](docs/CREDITS.md). Media are context
-illustrations (stated in their alt text); no real SolarVein installation is depicted. 3D renders are made from this project's own model.
-Fonts: Geist and Geist Mono (SIL OFL), self-hosted via Fontsource.
+Video and stills: Mixkit (Mixkit Free License), see [docs/CREDITS.md](docs/CREDITS.md). Images are illustrations
+("Ilustrasi, bukan dokumentasi proyek"); no real installation or hotel brand is depicted. 3D renders come from this
+project's own model. Fonts: Geist and Geist Mono (SIL OFL), self-hosted via Fontsource. Competition: HORIZON 2026,
+KAMASE UGM. The site is `noindex` and labelled a development version of the entry.

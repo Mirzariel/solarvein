@@ -1,0 +1,161 @@
+{
+  "source": "http://localhost:5198/?export=1&static=1",
+  "scale": 3,
+  "figures": [
+    {
+      "id": "router-diagram",
+      "ratio": "16x9",
+      "cssSize": [
+        1600,
+        900
+      ],
+      "files": [
+        "router-diagram.png",
+        "router-diagram.svg"
+      ]
+    },
+    {
+      "id": "router-diagram-b",
+      "ratio": "16x9",
+      "cssSize": [
+        1600,
+        900
+      ],
+      "files": [
+        "router-diagram-b.png",
+        "router-diagram-b.svg"
+      ]
+    },
+    {
+      "id": "router-diagram-c",
+      "ratio": "16x9",
+      "cssSize": [
+        1600,
+        900
+      ],
+      "files": [
+        "router-diagram-c.png",
+        "router-diagram-c.svg"
+      ]
+    },
+    {
+      "id": "router-diagram-4x5",
+      "ratio": "4x5",
+      "cssSize": [
+        1200,
+        1500
+      ],
+      "files": [
+        "router-diagram-4x5.png",
+        "router-diagram-4x5-1.svg",
+        "router-diagram-4x5-2.svg"
+      ]
+    },
+    {
+      "id": "kpi-baselines",
+      "ratio": "16x9",
+      "cssSize": [
+        1600,
+        900
+      ],
+      "files": [
+        "kpi-baselines.png",
+        "kpi-baselines.svg"
+      ]
+    },
+    {
+      "id": "kpi-baselines-4x5",
+      "ratio": "4x5",
+      "cssSize": [
+        1200,
+        1500
+      ],
+      "files": [
+        "kpi-baselines-4x5.png",
+        "kpi-baselines-4x5.svg"
+      ]
+    },
+    {
+      "id": "day-chart",
+      "ratio": "16x9",
+      "cssSize": [
+        1600,
+        900
+      ],
+      "files": [
+        "day-chart.png",
+        "day-chart.svg"
+      ]
+    },
+    {
+      "id": "day-chart-4x5",
+      "ratio": "4x5",
+      "cssSize": [
+        1200,
+        1500
+      ],
+      "files": [
+        "day-chart-4x5.png",
+        "day-chart-4x5.svg"
+      ]
+    },
+    {
+      "id": "day-chart-hujan-3-hari",
+      "ratio": "16x9",
+      "cssSize": [
+        1600,
+        900
+      ],
+      "files": [
+        "day-chart-hujan-3-hari.png",
+        "day-chart-hujan-3-hari.svg"
+      ]
+    },
+    {
+      "id": "desiccant-chart",
+      "ratio": "16x9",
+      "cssSize": [
+        1600,
+        900
+      ],
+      "files": [
+        "desiccant-chart.png",
+        "desiccant-chart.svg"
+      ]
+    },
+    {
+      "id": "desiccant-chart-4x5",
+      "ratio": "4x5",
+      "cssSize": [
+        1200,
+        1500
+      ],
+      "files": [
+        "desiccant-chart-4x5.png",
+        "desiccant-chart-4x5.svg"
+      ]
+    },
+    {
+      "id": "evidence-legend",
+      "ratio": "16x9",
+      "cssSize": [
+        1600,
+        900
+      ],
+      "files": [
+        "evidence-legend.png"
+      ]
+    },
+    {
+      "id": "evidence-legend-4x5",
+      "ratio": "4x5",
+      "cssSize": [
+        1200,
+        1500
+      ],
+      "files": [
+        "evidence-legend-4x5.png"
+      ]
+    }
+  ]
+}

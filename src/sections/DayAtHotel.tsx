@@ -1,0 +1,207 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { LABELS, getSystemView, type DayScenarioId } from '../sim/system';
+import { useSystemStore } from '../state/system';
+import { useDay, useSystem, useYear } from '../state/systemSelectors';
+import { Button, Disclosure, Readout, ResetIcon, SectionHeader, SegmentedControl, formatId } from '../ui';
+import { SECTION } from './nav';
+import { useElementWidth } from '../charts/useElementWidth';
+import { DayPlayhead, DayTracks, chartSummary, layoutTracks, type DayDomains } from '../charts/day/DayChart';
+import { useDayModel } from '../charts/day/dayModel';
+import { Scrubber } from './day/Scrubber';
+import { LiveDetails, LiveReadout } from './day/StepReadout';
+import { RainLine, RainPanel } from './day/RainPanel';
+import { Strategies, adaptiveLine } from './day/Strategies';
+import { useEntrySweep } from './day/useEntrySweep';
+import './DayAtHotel.css';
+
+const SCENARIO_CHIPS: readonly DayScenarioId[] = ['terik', 'berawan', 'hujan'];
+/**
+ * Pre-build the cached sim tiers this section needs, one small task per idle slot (≈100 ms each), as soon as the
+ * section's chunk has loaded. Keys match what the selector hooks request, so the first render is a cache hit.
+ */
+function prewarm(): void {
+  if (typeof window === 'undefined') return;
+  const ric = (window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
+  const run = (cb: () => void) => (ric ? ric(cb, { timeout: 3000 }) : window.setTimeout(cb, 400));
+  const tasks: Array<() => unknown> = [
+    () => getSystemView(useSystemStore.getState().sys).day(useSystemStore.getState().scenario),
+    () => getSystemView(useSystemStore.getState().sys).day('terik'),
+    () => getSystemView(useSystemStore.getState().sys).day('hujan-3-hari'),
+    () => getSystemView(useSystemStore.getState().sys).year('dhw-priority'),
+    () => getSystemView(useSystemStore.getState().sys).year('adaptive'),
+    () => getSystemView(useSystemStore.getState().sys).year('fixed-schedule'),
+  ];
+  const next = () => {
+    const t = tasks.shift();
+    if (!t) return;
+    try {
+      t();
+    } catch {
+      /* a failed warm-up only means the first render computes it */
+    }
+    run(next);
+  };
+  run(next);
+}
+prewarm();
+
+const SCENARIO_SHORT: Record<DayScenarioId, string> = { terik: 'Terik', berawan: 'Berawan', hujan: 'Hujan berat', 'hujan-3-hari': '3 hari hujan' };
+const ceilTo = (v: number, q: number): number => Math.max(q, Math.ceil(v / q - 1e-9) * q);
+
+/**
+ * 04 — Sehari di hotel. A sticky 24 h scrubber drives plain-SVG small multiples (mode bands, irradiance, DHW supply,
+ * tank fill, PV) and a readout of the step under the playhead. Everything is a lookup into the cached day; the
+ * only motion is one 06 → 24 h sweep on first entry. Visible: the chart, three numbers, one adaptive line, one rain
+ * line. Everything else (rain details, strategies, area sweep, basis) sits behind one disclosure.
+ */
+export default function DayAtHotel() {
+  const def = SECTION['sehari'];
+  const scenario = useSystemStore((s) => s.scenario);
+  const dayView = useSystemStore((s) => s.dayView);
+  const setDayView = useSystemStore((s) => s.setDayView);
+  const setScenario = useSystemStore((s) => s.setScenario);
+
+  const day = useDay();
+  const clearDay = useDay('terik');
+  const model = useDayModel(day);
+  const clearModel = useDayModel(clearDay);
+  const year = useYear();
+  const dhwYear = useYear('dhw-priority');
+  const adaptiveYear = useYear('adaptive');
+  const sys = useSystem();
+
+  const domains = useMemo<DayDomains>(
+    () => ({ allocMaxKW: ceilTo(clearModel.maxDemandKW, 5), pvMaxKW: ceilTo(clearModel.maxPvKW, 2.5) }),
+    [clearModel],
+  );
+
+  const block = useRef<HTMLDivElement>(null);
+  const [colRef, width] = useElementWidth<HTMLDivElement>();
+  const { replay, running, available } = useEntrySweep(block);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [everOpened, setEverOpened] = useState(false);
+  useEffect(() => {
+    if (detailsOpen) setEverOpened(true);
+  }, [detailsOpen]);
+
+  const layoutH = width > 0 ? layoutTracks(width, model.tMax > 24 ? true : false).height : 560;
+  const t = day.totals;
+  const multi = dayView === '72h';
+
+  return (
+    <section id="sehari" aria-labelledby="sehari-judul" className="scroll-mt-14 pb-10 pt-24 lg:pb-12 lg:pt-32">
+      <div className="page-wrap">
+        <SectionHeader
+          id="sehari-judul"
+          index={def?.n ? { n: def.n, label: def.label } : undefined}
+          title="Sehari penuh."
+          lead="Geser jam: air panas dari kolektor, tangki, atau pemanas cadangan."
+        />
+
+        <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-3">
+          <SegmentedControl
+            ariaLabel="Rentang waktu"
+            size="sm"
+            value={dayView}
+            onChange={(v) => setDayView(v)}
+            options={[
+              { value: '24h', label: '24 jam' },
+              { value: '72h', label: '3 hari hujan' },
+            ]}
+          />
+          <SegmentedControl
+            ariaLabel="Jenis hari"
+            size="sm"
+            value={dayView === '72h' ? 'terik' : (scenario as DayScenarioId)}
+            noSelection={dayView === '72h'}
+            onChange={(v) => {
+              if (dayView === '72h') setDayView('24h');
+              setScenario(v);
+            }}
+            options={SCENARIO_CHIPS.map((s) => ({ value: s, label: SCENARIO_SHORT[s], description: LABELS.scenario[s] }))}
+          />
+          {available ? (
+            <Button variant="ghost" size="sm" icon={<ResetIcon size={14} />} onClick={replay} disabled={dayView !== '24h' || running} className="ml-auto">
+              Putar ulang
+            </Button>
+          ) : null}
+        </div>
+
+        <div ref={block} className="grid-12 mt-8 gap-y-10">
+          <div ref={colRef} className="col-span-12 min-w-0 lg:col-span-8">
+            <div className="sticky top-14 z-20 border-b border-line bg-paper">
+              {width > 0 ? <Scrubber model={model} width={width} /> : <div className="h-14" />}
+            </div>
+
+            <figure
+              data-export="day-chart"
+              data-presentasi-focus
+              role="img"
+              aria-label={chartSummary(model, LABELS.scenario[day.scenario])}
+              className="relative m-0 mt-4"
+              style={{ minHeight: layoutH }}
+            >
+              {width > 0 ? (
+                <>
+                  <DayTracks model={model} width={width} domains={domains} />
+                  <DayPlayhead day={day} model={model} width={width} domains={domains} />
+                </>
+              ) : null}
+            </figure>
+
+            <dl className="mt-8 grid grid-cols-3 gap-x-6">
+              <Readout
+                label="Fraksi surya"
+                value={t.solarFraction * 100}
+                unit="%"
+                digits={0}
+                size="md"
+                sublabel={multi ? 'termasuk simpanan awal' : undefined}
+              />
+              <Readout label="Pemanas cadangan" value={t.dhwBackupKWhTh} unit="kWh" kind="thermal" digits={0} size="md" />
+              <Readout label="Listrik PV" value={t.pvKWhE} unit="kWh" kind="electrical" digits={0} size="md" />
+            </dl>
+          </div>
+
+          <aside className="col-span-12 min-w-0 self-start lg:sticky lg:top-[88px] lg:col-span-4" aria-label="Keadaan pada jam terpilih">
+            <LiveReadout model={model} />
+          </aside>
+        </div>
+
+        <div className="mt-10 max-w-[64ch] space-y-3">
+          <p className="m-0 text-body text-ink">{adaptiveLine(dhwYear, adaptiveYear)}</p>
+          <RainLine />
+        </div>
+
+        <div className="mt-8 max-w-4xl">
+          <Disclosure title="Lihat perhitungan" hint="Hujan panjang, strategi, luas panel, dasar hitung" open={detailsOpen} onOpenChange={setDetailsOpen}>
+            <div className="space-y-10 pt-2">
+              {everOpened ? (
+                <>
+                  <LiveDetails model={model} />
+                  <RainPanel />
+                  <Strategies />
+                </>
+              ) : null}
+              <p className="text-small text-ink-2">
+                {sys.hotel.label}; <span className="num text-ink">{formatId(sys.array.modules * sys.array.module.areaM2, 0)}</span> m² PV/T, tangki{' '}
+                <span className="num text-ink">{formatId(sys.tank.volumeL, 0)}</span> L. Angka setahun memakai{' '}
+                <span className="num text-ink">{formatId(year.weights.reduce((a, w) => a + w.days, 0), 0)}</span> hari menurut jenis hari:{' '}
+                {year.weights.map((w, i) => (
+                  <span key={w.scenario}>
+                    {i > 0 ? ', ' : ''}
+                    {LABELS.scenario[w.scenario].toLowerCase()} <span className="num text-ink">{formatId(w.days, 0)}</span>
+                  </span>
+                ))}
+                . Langkah waktu <span className="num text-ink">{formatId(day.dtH * 60, 0)}</span> menit; neraca energi tangki tertutup dalam{' '}
+                <span className="num text-ink">{formatId(Math.abs(day.energyClosureErrorKWh), 2)}</span> kWh<sub className="text-[0.7em]">th</sub>. Mode A/B/C dihitung dari
+                kondisi, bukan dari jam. Kebutuhan air panas yang tidak terpenuhi: <span className="num text-ink">{formatId(t.unmetKWhTh, 0)}</span> kWh
+                <sub className="text-[0.7em]">th</sub>; pemanas dan AC lama selalu siap.
+              </p>
+            </div>
+          </Disclosure>
+        </div>
+      </div>
+    </section>
+  );
+}

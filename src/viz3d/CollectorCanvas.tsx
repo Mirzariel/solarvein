@@ -14,7 +14,7 @@
  */
 import { PerformanceMonitor } from '@react-three/drei';
 import { Canvas, useThree } from '@react-three/fiber';
-import { memo, Suspense, useEffect, useRef, useState } from 'react';
+import { memo, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { useInView, useReducedMotion } from '../hooks';
 import { weather } from '../motion';
@@ -38,37 +38,158 @@ function Wake({ active }: { active: boolean }) {
   return null;
 }
 
-/** Compile every shader program once, asynchronously (no main-thread stall), then let the loop start. */
+/**
+ * Shader warm-up (gate-3 P0). Production QA measured a 1.2-2.6 s main-thread freeze the first time a stage was seen:
+ * `getProgramInfoLog` blocks until the driver has linked the program. Two causes:
+ *  1. the shadow-depth program is NOT compiled by `compile()` (it exists only in the shadow pass), so the first
+ *     visible render linked it synchronously, and
+ *  2. that stall made the PerformanceMonitor step the tier down to `low` (shadows off), which changes the cache key
+ *     of EVERY lit material: the whole scene was compiled a second time, right on arrival.
+ * Now: wait until the scene is really built (collector + environment), `compileAsync` it (KHR_parallel_shader_compile,
+ * the main thread stays free), then do ONE hidden `render` inside requestIdleCallback (shadow-depth program, texture and
+ * geometry uploads) before the loop may start. Stages warm one after the other (a shared queue), so two canvases never
+ * block the main thread together. The PerformanceMonitor is only armed after the stage has been animating for 2.5 s.
+ */
+let warmQueue: Promise<void> = Promise.resolve();
+const WARM_DEADLINE_MS = 8000;
+
+const idle = (fn: () => void, timeout = 1500): void => {
+  const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number };
+  if (w.requestIdleCallback) w.requestIdleCallback(fn, { timeout });
+  else window.setTimeout(fn, 60);
+};
+
+/** Private shape of three's PMREMGenerator (pinned three 0.186): only used to pre-link its shaders. */
+interface PmremInternals {
+  _setSize?: (n: number) => void;
+  _allocateTargets?: () => THREE.WebGLRenderTarget;
+  _ggxMaterial?: THREE.Material | null;
+  _lodMeshes?: THREE.Mesh[];
+  _cubemapMaterial?: THREE.Material | null;
+  compileCubemapShader?: () => void;
+  dispose: () => void;
+}
+
+/**
+ * The environment cube is converted to a PMREM the first time a lit material is drawn, and that conversion links
+ * three's GGX convolution shader SYNCHRONOUSLY (~1 s of `getProgramInfoLog` on D3D11). The renderer caches programs by
+ * source, so linking the identical shader up front with `compileAsync` (KHR_parallel_shader_compile) turns that stall
+ * into a cache hit. Uses private fields of the pinned three version; any failure just leaves today's behaviour.
+ */
+async function prewarmPmrem(gl: THREE.WebGLRenderer, size: number): Promise<PmremInternals | null> {
+  const g = new THREE.PMREMGenerator(gl) as unknown as PmremInternals;
+  const r = gl as unknown as { compileAsync?: (s: THREE.Object3D, c: THREE.Camera) => Promise<unknown> };
+  if (!r.compileAsync || !g._setSize || !g._allocateTargets) return g;
+  const prev = gl.getRenderTarget();
+  try {
+    g._setSize(size);
+    const target = g._allocateTargets(); // LinearSRGB half-float target: same output colour space as the real pass
+    const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    const jobs: Promise<unknown>[] = [];
+    gl.setRenderTarget(target);
+    const ggx = g._ggxMaterial;
+    const lod = g._lodMeshes?.[1];
+    if (ggx && lod) {
+      lod.material = ggx;
+      jobs.push(r.compileAsync(lod, cam));
+    }
+    g.compileCubemapShader?.();
+    const cube = g._cubemapMaterial;
+    if (cube) jobs.push(r.compileAsync(new THREE.Mesh(new THREE.BufferGeometry(), cube), cam));
+    await Promise.all(jobs);
+  } catch {
+    /* best effort */
+  } finally {
+    gl.setRenderTarget(prev);
+  }
+  return g;
+}
+
 function Warm({ onReady }: { onReady: () => void }) {
   const gl = useThree((s) => s.gl);
   const scene = useThree((s) => s.scene);
   const camera = useThree((s) => s.camera);
+  const advance = useThree((s) => s.advance);
+  const pmrem = useRef<PmremInternals | null>(null);
+  useEffect(
+    () => () => {
+      pmrem.current?.dispose();
+      pmrem.current = null;
+    },
+    [],
+  );
+  const envSize = TIERS.medium.env; // identical on every tier (see quality.ts)
   useEffect(() => {
+    let cancelled = false;
     let done = false;
     const finish = () => {
       if (done) return;
       done = true;
       onReady();
     };
-    const fallback = window.setTimeout(finish, 6000);
-    const start = () => {
+    const hardStop = window.setTimeout(finish, WARM_DEADLINE_MS + 4000);
+
+    /** The Suspense subtree (studio, collector, effects) and the environment are mounted. */
+    const built = (): boolean => scene.environment !== null && scene.getObjectByName('collector') !== undefined;
+    const waitBuilt = (): Promise<void> =>
+      new Promise((resolve) => {
+        const t0 = performance.now();
+        const tick = () => {
+          if (cancelled || built() || performance.now() - t0 > WARM_DEADLINE_MS) resolve();
+          else window.setTimeout(tick, 80);
+        };
+        tick();
+      });
+    const compile = async (): Promise<void> => {
       const r = gl as unknown as { compileAsync?: (s: THREE.Object3D, c: THREE.Camera) => Promise<unknown> };
-      if (r.compileAsync) r.compileAsync(scene, camera).then(finish, finish);
-      else {
-        try {
-          gl.compile(scene, camera);
-        } catch {
-          /* best effort */
-        }
-        finish();
+      try {
+        if (r.compileAsync) await r.compileAsync(scene, camera);
+        else gl.compile(scene, camera);
+      } catch {
+        /* best effort */
       }
     };
-    const t = window.setTimeout(start, 50); // let the children mount first
-    return () => {
-      window.clearTimeout(t);
-      window.clearTimeout(fallback);
+    const hiddenRender = (): Promise<void> =>
+      new Promise((resolve) => {
+        idle(() => {
+          try {
+            // one full frame (useFrame callbacks included): environment cube + PMREM, shadow-depth program, first
+            // texture / geometry uploads, all off the user's path
+            advance(performance.now() / 1000, true);
+          } catch {
+            /* best effort */
+          }
+          resolve();
+        });
+      });
+
+    const mark = (name: string): void => {
+      try {
+        performance.mark(`sv3d:${name}`);
+      } catch {
+        /* ignore */
+      }
     };
-  }, [gl, scene, camera, onReady]);
+    const job = warmQueue.then(async () => {
+      mark('warm-start');
+      if (!pmrem.current) pmrem.current = await prewarmPmrem(gl, envSize);
+      mark('pmrem');
+      await waitBuilt();
+      if (cancelled) return;
+      mark('built');
+      await compile();
+      if (cancelled) return;
+      mark('compiled');
+      await hiddenRender();
+      mark('warmed');
+    });
+    warmQueue = job.catch(() => undefined);
+    void job.then(finish, finish);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(hardStop);
+    };
+  }, [gl, scene, camera, advance, envSize, onReady]);
   return null;
 }
 
@@ -149,7 +270,26 @@ function CollectorCanvas({ explodeOnView = false, preserveDrawingBuffer = false,
   );
   const [visible, setVisible] = useState(() => typeof document === 'undefined' || !document.hidden);
   const [ready, setReady] = useState(false);
+  const onReady = useCallback(() => setReady(true), []);
   const animate = inView && visible && ready;
+  // the tier monitor must not judge the first frames of a stage (any residual one-off work would drop the tier,
+  // switch shadows off and recompile every program): arm it after 2.5 s of continuous animation
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (animate) {
+      try {
+        performance.mark(`sv3d:animate:${stage.variant}`);
+      } catch {
+        /* ignore */
+      }
+    }
+    if (!animate) {
+      setArmed(false);
+      return;
+    }
+    const t = window.setTimeout(() => setArmed(true), 2500);
+    return () => window.clearTimeout(t);
+  }, [animate, stage.variant]);
   const inspect = stage.variant === 'inspect';
   const transparent = stage.background === 'transparent';
 
@@ -171,7 +311,7 @@ function CollectorCanvas({ explodeOnView = false, preserveDrawingBuffer = false,
       <Canvas
         frameloop={animate ? 'demand' : 'never'}
         dpr={[1, TIERS[tier].dpr]}
-        camera={{ fov: CAMERA_FOV, near: 0.1, far: 40, position: initialCameraPosition(stage.variant) }}
+        camera={{ fov: CAMERA_FOV, near: 0.1, far: 60, position: initialCameraPosition(stage.variant) }}
         gl={{ antialias: true, alpha: transparent, powerPreference: 'high-performance', preserveDrawingBuffer }}
         onCreated={({ gl }) => {
           gl.localClippingEnabled = true;
@@ -185,11 +325,14 @@ function CollectorCanvas({ explodeOnView = false, preserveDrawingBuffer = false,
         }}
       >
         {transparent ? null : <color attach="background" args={[COLORS.background]} />}
-        {forced || !ready ? null : (
+        {forced || !armed ? null : (
           <PerformanceMonitor
             ms={120}
             iterations={3}
             flipflops={2}
+            // the idle ambient loop is capped at 30 fps (20 on low): drei's default lower bound (40) would read that cap
+            // as a slow device and step down forever. Decline only below 24 fps, promote only above 55.
+            bounds={() => [24, 55]}
             onDecline={() => setAuto((t) => STEP_DOWN[t])}
             onIncline={() => setAuto((t) => (t === maxTier.current ? t : STEP_UP[t]))}
           />
@@ -206,7 +349,7 @@ function CollectorCanvas({ explodeOnView = false, preserveDrawingBuffer = false,
         <Projector anchors={inspect ? INSPECT_ANCHORS : EXPERIENCE_ANCHORS} />
         <FrameCap minMs={reduced ? 0 : IDLE_FRAME_MS[tier]} />
         <Wake active={animate} />
-        <Warm onReady={() => setReady(true)} />
+        <Warm onReady={onReady} />
         <DevProbe />
       </Canvas>
     </div>

@@ -1,23 +1,33 @@
 import gsap from 'gsap';
-import { Suspense, lazy, useMemo, useRef } from 'react';
-import { useMediaQuery } from '../hooks';
-import { WeatherSky, useScrollScene } from '../motion';
-import { useSimResult } from '../state/selectors';
-import { useStore } from '../state/store';
-import { InfoTip, RainIcon, SectionHeader, SegmentedControl, SunIcon, type SegmentedOption } from '../ui';
+import { Suspense, lazy, useMemo, useRef, useState } from 'react';
+import { useMediaQuery, useReducedMotion } from '../hooks';
+import { ScrollTrigger, WeatherSky, useScrollScene } from '../motion';
+import { LABELS, MODE_TARGETS, type ModeTarget } from '../sim/system';
+
+import { useSystemStore } from '../state/system';
+import { SISTEM } from '../content/sistem';
+import { createStageStore, type StageStore } from '../viz3d/stage';
+import { useStep, useSystem } from '../state/systemSelectors';
+import { InfoTip, SectionHeader, SegmentedControl, type SegmentedOption } from '../ui';
 import { DetailPanel } from './hero/DetailPanel';
-import { LiveHeatReadout, LiveReadout } from './hero/LiveReadout';
+import { ElectricReadout, HeatReadout } from './hero/LiveReadout';
+import { SplitLine } from './hero/SplitLine';
 import { Statement } from './hero/Statement';
-import { describeRegime } from './hero/regime';
+import { describeStep } from './hero/regime';
 import { useAnnouncement } from './hero/useAnnouncement';
 
 // three + r3f load on demand; the switch, the statement and the readouts render immediately.
 const CollectorStage = lazy(() => import('../viz3d/CollectorStage'));
 
-const MODES: readonly SegmentedOption<'sunny' | 'rainy'>[] = [
-  { value: 'sunny', label: 'Cerah', icon: <SunIcon size={16} />, dot: 'heat' },
-  { value: 'rainy', label: 'Hujan', icon: <RainIcon size={16} />, dot: 'cool' },
-];
+/** A / B / C are CONDITIONS (scenario + time); the labels name them, the controller computes the real mode. */
+const TARGETS = Object.keys(MODE_TARGETS) as ModeTarget[];
+const OPTIONS: readonly SegmentedOption<ModeTarget>[] = TARGETS.map((k) => ({ value: k, label: LABELS.modeTarget[k] }));
+/** Narrow screens: the first word of the same label (full label stays in the tooltip / accessible name). */
+const OPTIONS_SHORT: readonly SegmentedOption<ModeTarget>[] = TARGETS.map((k) => ({
+  value: k,
+  label: LABELS.modeTarget[k].split(/[ &]/)[0] ?? LABELS.modeTarget[k],
+  description: LABELS.modeTarget[k],
+}));
 
 /** While the 3D chunk loads, show a still rendered from the same model (public/images/renders) instead of an empty box. */
 function StageFallback() {
@@ -37,18 +47,13 @@ function StageFallback() {
 }
 
 /**
- * Screen-reader announcer, a leaf of its own: it reads the COMMITTED result (a change is spoken once, never per tick)
- * and keeps Hero and the 3D stage children from re-rendering on every input change.
+ * Screen-reader announcer, a leaf of its own: it speaks the COMPUTED mode and reason when either changes (never per
+ * tick, never for numbers) and keeps Hero and the 3D stage from re-rendering with the step.
  */
 function Announcer() {
-  const committed = useSimResult();
-  const statement = useMemo(() => describeRegime(committed), [committed]);
-  const signature = `${statement.key}|${committed.advisories.map((a) => a.code).join(',')}`;
-  const spoken = useMemo(() => {
-    const important = committed.advisories.filter((a) => a.severity !== 'info' && a.code !== 'REJECTION_NOT_BENEFICIAL');
-    return [statement.headline, ...important.map((a) => a.message)].join(' ');
-  }, [statement, committed.advisories]);
-  const announcement = useAnnouncement(signature, spoken);
+  const s = describeStep(useStep());
+  const spoken = useMemo(() => `${s.pill}. ${s.headline}`, [s.pill, s.headline]);
+  const announcement = useAnnouncement(s.key, spoken);
   return (
     <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
       {announcement}
@@ -56,21 +61,101 @@ function Announcer() {
   );
 }
 
+/** The A/B/C condition switch. 'custom' (time or scenario changed elsewhere) shows no selection. */
+function ModeSwitch({ wide }: { wide: boolean }) {
+  const target = useSystemStore((s) => s.modeTarget);
+  const setModeTarget = useSystemStore((s) => s.setModeTarget);
+  const dayView = useSystemStore((s) => s.dayView);
+  const setDayView = useSystemStore((s) => s.setDayView);
+  const custom = target === 'custom';
+  const sm = useMediaQuery('(min-width: 640px)', true);
+  const tone = wide ? 'stage' : 'page';
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      <SegmentedControl
+        ariaLabel={SISTEM.switchLabel}
+        options={sm ? OPTIONS : OPTIONS_SHORT}
+        value={custom ? 'A' : target}
+        noSelection={custom}
+        onChange={(k) => {
+          // always land on a defined preset: leave the 72 h view first, then set scenario + hour of the chosen condition
+          if (dayView !== '24h') setDayView('24h');
+          setModeTarget(k);
+        }}
+        tone={tone}
+        size="md"
+        fullWidth={!wide}
+        className={wide ? undefined : 'w-full'}
+      />
+      {custom ? (
+        <span className={`inline-flex items-center gap-2 text-label ${wide ? 'text-stage-ink' : 'text-ink'}`}>
+          Kondisi kustom
+          <InfoTip tone={tone} label="Tentang kondisi kustom" side="top">
+            Waktu atau hari diubah di bagian lain. Pilih salah satu kondisi untuk kembali ke preset.
+          </InfoTip>
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+/** Reduced motion only: no scroll scrub, so a text button swaps the framing between the panel and the hotel roof. */
+function FramingToggle({ store, tone }: { store: StageStore; tone: 'stage' | 'page' }) {
+  const [hotel, setHotel] = useState(false);
+  return (
+    <button
+      type="button"
+      aria-pressed={hotel}
+      onClick={() => {
+        store.getState().setFraming(hotel ? 'panel' : 'hotel');
+        setHotel(!hotel);
+      }}
+      className={`inline-flex min-h-11 items-center text-small underline underline-offset-4 transition-ui ${
+        tone === 'stage' ? 'text-stage-ink decoration-stage-line hover:decoration-stage-ink' : 'text-ink decoration-line-strong hover:decoration-ink'
+      }`}
+    >
+      {hotel ? 'Lihat panel' : 'Lihat atap hotel'}
+    </button>
+  );
+}
+
+/** One quiet line: what the numbers are for (array size from the system inputs, never typed). */
+function ArrayNote({ store, reduce, tone }: { store: StageStore; reduce: boolean; tone: 'stage' | 'page' }) {
+  const sys = useSystem();
+  const area = Math.round(sys.array.modules * sys.array.module.areaM2);
+  return (
+    <div className="mt-5 flex flex-wrap items-center justify-between gap-x-8 gap-y-1">
+      <p className="max-w-[72ch] text-small text-ink-3">{SISTEM.statement(sys.hotel.rooms, area)}</p>
+      <div className="flex items-center gap-6">
+        {reduce ? <FramingToggle store={store} tone={tone} /> : null}
+        <a
+          href="#lab"
+          className="inline-flex min-h-11 items-center text-small text-ink underline decoration-line-strong underline-offset-4 transition-ui hover:decoration-ink"
+        >
+          Buka Lab
+        </a>
+      </div>
+    </div>
+  );
+}
+
 /**
- * 01 Pengalaman: the product moment (docs/audit/07-creative-direction-v2.md C.2, QA/critic pass 3).
- * The head sits above the stage so the instruction arrives before the control; the stage is a graphite card (shadow-4)
- * with the switch inside it (desktop) or directly below it (mobile); one live sentence and the two L1 instruments form
- * the strip. Behind everything the sky follows the interpolated weather. Everything live reads the weather engine's
- * visual frame; the camera is never touched by a mode change.
+ * 02 Sistem: the product moment. The head sits above the stage so the instruction arrives before the control; the
+ * stage is a graphite card (shadow-4) with the A/B/C switch inside it (desktop) or directly below it (mobile); the
+ * computed mode with its reason, the two array readouts (Listrik, Panas) and the one-line router split form the strip.
+ * Everything live reads the v2 DayStep at the store hour; the camera is never touched by a condition change.
+ *
+ * Pull-back: the stage store's framing (0 = panel, 1 = hotel roof) is scrubbed by this section's scroll, so the camera
+ * opens on the collector and retreats to the hotel roof as the card reaches the eye line. A/B/C never moves the camera.
+ * The scene starts on the panel framing (collector ~70 % of the stage width) and pulls back only once the card is well
+ * inside the viewport. Reduced motion: no scrub; the stage rests on the panel and a text button swaps to the hotel roof.
  */
 export default function Hero() {
-  const mode = useStore((s) => s.mode);
-  const setMode = useStore((s) => s.setMode);
   const wide = useMediaQuery('(min-width: 1024px)', true);
   const tablet = useMediaQuery('(min-width: 768px)', true);
-
-  const custom = mode === 'lab';
   const root = useRef<HTMLElement>(null);
+  const store = useMemo(() => createStageStore({ exploded: false }), []);
+  const reduce = useReducedMotion();
 
   // Depth on entry: the stage card arrives slightly smaller and tilted back, and settles flat as it reaches the eye line.
   useScrollScene(root, ({ desktop }) => {
@@ -79,106 +164,76 @@ export default function Hero() {
       { scale: desktop ? 0.9 : 0.96, rotateX: desktop ? 9 : 0, y: desktop ? 40 : 16, transformPerspective: 1600, transformOrigin: '50% 100%' },
       { scale: 1, rotateX: 0, y: 0, ease: 'none', scrollTrigger: { trigger: '[data-stage-card]', start: 'top bottom', end: 'top 30%', scrub: 0.5 } },
     );
-    gsap.fromTo('[data-strip] > *', { autoAlpha: 0, y: 16 }, { autoAlpha: 1, y: 0, stagger: 0.08, duration: 0.8, ease: 'power3.out', scrollTrigger: { trigger: '[data-stage-card]', start: 'top 45%', once: true } });
+    // camera pull-back, scrubbed with the card's approach (continuous 0..1; the camera springs after it)
+    ScrollTrigger.create({
+      trigger: '[data-stage-card]',
+      start: 'top 10%',
+      end: 'top -35%',
+      onUpdate: (self) => store.getState().setFramingRaw(self.progress),
+    });
+    if (root.current?.querySelector('[data-strip]')) gsap.fromTo('[data-strip] > *', { autoAlpha: 0, y: 16 }, { autoAlpha: 1, y: 0, stagger: 0.08, duration: 0.8, ease: 'power3.out', scrollTrigger: { trigger: '[data-stage-card]', start: 'top 45%', once: true } });
   });
-  const tone = wide ? 'stage' : 'page';
-
-  const modeSwitch = (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-      <SegmentedControl
-        ariaLabel="Cuaca"
-        options={MODES}
-        value={custom ? 'sunny' : mode}
-        noSelection={custom}
-        onChange={(v) => setMode(v)}
-        tone={tone}
-        size="md"
-        fullWidth={!wide}
-        className={wide ? undefined : 'w-full'}
-      />
-      {custom ? (
-        <span className={`inline-flex items-center gap-2 text-label ${wide ? 'text-stage-ink' : 'text-ink'}`}>
-          Kustom
-          <InfoTip tone={tone} label="Tentang mode kustom" side="top">
-            Masukan diubah di Lab. Pilih Cerah atau Hujan untuk kembali ke preset.
-          </InfoTip>
-        </span>
-      ) : null}
-    </div>
-  );
 
   return (
-    <section ref={root} id="pengalaman" aria-labelledby="pengalaman-judul" className="relative pb-20 pt-16 lg:pb-32 lg:pt-20">
-      {/* the weather outside: continues the opening photo's sky */}
-      <WeatherSky className="pointer-events-none absolute inset-x-0 -top-40 -z-10 h-[1000px] [mask-image:linear-gradient(180deg,transparent_0,black_200px)]" />
+    <section ref={root} id="sistem" aria-labelledby="sistem-judul" className="relative pb-20 pt-16 lg:pb-32 lg:pt-20 [@media(min-width:1024px)_and_(max-height:800px)]:pt-10">
+      {/* the sky outside: continues the opening photo's sky */}
+      <WeatherSky className="pointer-events-none absolute inset-x-0 -top-40 -z-10 h-[1000px] [mask-image:linear-gradient(180deg,transparent_0,rgb(0_0_0/0.2)_100px,black_340px)]" />
 
       <div className="page-wrap">
         {/* the head comes first: the instruction arrives before the control. Phrases never split. */}
         <SectionHeader
-          id="pengalaman-judul"
-          index={{ n: '01', label: 'Pengalaman' }}
-          title={
-            <>
-              <span className="block whitespace-nowrap">Satu panel.</span>
-              <span className="block whitespace-nowrap">Dua arah panas.</span>
-            </>
-          }
-          lead="Pilih cuacanya, lalu ikuti ke mana panas pergi."
+          id="sistem-judul"
+          index={SISTEM.index}
+          title={SISTEM.title.map((l) => (
+            <span key={l} className="block">
+              {l}
+            </span>
+          ))}
+          lead={SISTEM.lead}
+          className="[@media(max-height:800px)]:[&_h2]:text-[44px] [@media(max-height:800px)]:[&_h2]:leading-[46px]"
         />
 
         {/* ── the stage card ── */}
-        <div data-stage-card data-tone="stage" className="mt-10 overflow-hidden rounded-[20px] bg-stage-0 text-stage-ink shadow-4 will-change-transform lg:mt-14 lg:rounded-[28px]">
-          <div className="relative h-[360px] sm:h-[480px] lg:h-[clamp(520px,calc(100svh-14rem),760px)]">
+        <div data-stage-card data-presentasi-focus data-tone="stage" className="mt-10 overflow-hidden rounded-[20px] bg-stage-0 text-stage-ink shadow-4 will-change-transform lg:mt-14 [@media(min-width:1024px)_and_(max-height:800px)]:mt-6 lg:rounded-[28px]">
+          <div className="relative h-[360px] sm:h-[480px] lg:h-[clamp(340px,calc(100svh-17rem),700px)] [@media(min-width:1024px)_and_(max-height:760px)]:h-[56svh]">
             <Suspense fallback={<StageFallback />}>
-              <CollectorStage zoomButtons={tablet} hint>
+              <CollectorStage store={store} zoomButtons={tablet} hint>
                 {wide ? (
                   <div className="absolute left-5 top-5 z-20 flex items-center gap-4 rounded-full bg-stage-0/80 py-1 pl-1 pr-5 shadow-e2 ring-1 ring-white/10">
-                    {modeSwitch}
-                    <a
-                      href="#lab"
-                      className="inline-flex min-h-11 items-center text-small text-stage-ink underline decoration-stage-line underline-offset-4 transition-ui hover:decoration-stage-ink"
-                    >
-                      Buka Lab
-                    </a>
-                  </div>
+                    <ModeSwitch wide />
+                    </div>
                 ) : null}
               </CollectorStage>
             </Suspense>
           </div>
           {wide ? (
-            <div data-strip className="grid grid-cols-12 items-start gap-8 border-t border-stage-line px-8 py-6">
-              <Statement tone="stage" className="col-span-6" />
-              <div className="col-span-3">
-                <LiveReadout label="Listrik" select={(r) => r.electricalW} unit="W" kind="electrical" size="lg" tone="stage" rule={false} />
-              </div>
-              <div className="col-span-3">
-                <LiveHeatReadout tone="stage" size="lg" />
+            <div data-strip className="grid grid-cols-12 items-start gap-10 border-t border-stage-line px-8 py-5">
+              <Statement tone="stage" className="col-span-5" />
+              <div className="col-span-7">
+                <div className="grid grid-cols-2 gap-8">
+                  <ElectricReadout size="md" tone="stage" rule={false} />
+                  <HeatReadout size="md" tone="stage" rule={false} />
+                </div>
+                <SplitLine tone="stage" className="mt-4 border-t border-stage-line pt-3" />
               </div>
             </div>
           ) : null}
         </div>
 
-        {/* mobile: switch, sentence and instruments on the page, directly under the stage */}
+        {/* mobile: switch, sentence, instruments and split on the page, directly under the stage */}
         {wide ? null : (
           <div className="mt-4 space-y-5">
-            {modeSwitch}
+            <ModeSwitch wide={false} />
             <Statement tone="page" />
             <div className="grid grid-cols-2 gap-x-6">
-              <LiveReadout label="Listrik" select={(r) => r.electricalW} unit="W" kind="electrical" size="md" tone="page" rule={false} />
-              <LiveHeatReadout tone="page" size="md" />
+              <ElectricReadout size="md" tone="page" rule={false} />
+              <HeatReadout size="md" tone="page" rule={false} />
             </div>
-            <a
-              href="#lab"
-              className="inline-flex min-h-11 items-center text-small text-ink underline decoration-line-strong underline-offset-4 transition-ui hover:decoration-ink"
-            >
-              Buka Lab
-            </a>
+            <SplitLine tone="page" className="border-t border-line pt-4" />
           </div>
         )}
 
-        <p className="mt-5 max-w-[72ch] text-small text-ink-3">
-          Cairan selalu mengalir dari masuk ke keluar; yang berbalik hanya arah panasnya. Warna cairan = suhu (skala diperbesar).
-        </p>
+        <ArrayNote store={store} reduce={reduce} tone="page" />
 
         <div className="mt-6 max-w-[44rem]">
           <DetailPanel />

@@ -1,0 +1,8 @@
+/* 06 Dampak: no gradients, no shadows. Layout stays in utilities; this file only holds what utilities cannot say. */
+.impact table th,
+.impact table td {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.impact [data-verdict] {
+  text-wrap: pretty;
+}

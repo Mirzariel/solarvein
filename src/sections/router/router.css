@@ -1,0 +1,31 @@
+/* 03 — Cara kerja. Section-specific rules only; tokens come from index.css. */
+.router-pin {
+  --router-p: 0;
+}
+/* The invisible hour slider over the day strip: keep a visible focus ring on the strip itself. */
+[data-day-strip]:has(input:focus-visible) {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+[data-day-strip] input:focus-visible {
+  outline: none;
+}
+
+/* Short laptop / projector viewports (1280×720): give the diagram the height, not the chrome. */
+@media (min-width: 1024px) and (max-height: 820px) {
+  .router-pin {
+    gap: 6px;
+    padding-top: 60px;
+    padding-bottom: 10px;
+  }
+  .router-pin h2 {
+    margin-top: 6px;
+    font-size: 32px;
+    line-height: 36px;
+  }
+  .router-pin header p,
+  .router-pin > div:first-child p {
+    margin-top: 4px;
+  }
+}

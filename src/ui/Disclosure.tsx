@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 import { ChevronIcon } from './Icon';
 import { cx } from './cx';
 
@@ -13,6 +13,8 @@ export interface DisclosureProps {
   onOpenChange?: (open: boolean) => void;
   /** Heading level wrapping the trigger button (for document outline). Default 3. */
   level?: 2 | 3 | 4;
+  /** Mount children only after the first open (default true): heavy computed content costs nothing while closed. */
+  lazy?: boolean;
   className?: string;
 }
 
@@ -22,9 +24,21 @@ export interface DisclosureProps {
  * siblings: each draws a top rule and the last one closes with a bottom rule.
  * Closed content is `inert` (not focusable, not announced).
  */
-export function Disclosure({ title, hint, children, defaultOpen = false, open, onOpenChange, level = 3, className }: DisclosureProps) {
+export function Disclosure({ title, hint, children, defaultOpen = false, open, onOpenChange, level = 3, lazy = true, className }: DisclosureProps) {
   const [inner, setInner] = useState(defaultOpen);
   const isOpen = open ?? inner;
+  const [everOpened, setEverOpened] = useState(isOpen);
+  // Tooltips inside must not be clipped once the height animation has finished.
+  const [settled, setSettled] = useState(isOpen);
+  useEffect(() => {
+    if (isOpen) setEverOpened(true);
+    if (!isOpen) {
+      setSettled(false);
+      return;
+    }
+    const t = window.setTimeout(() => setSettled(true), 280);
+    return () => window.clearTimeout(t);
+  }, [isOpen]);
   const uid = useId();
   const Heading = `h${level}` as 'h2' | 'h3' | 'h4';
   const toggle = () => {
@@ -45,7 +59,12 @@ export function Disclosure({ title, hint, children, defaultOpen = false, open, o
         >
           <span className="min-w-0 text-body font-medium text-ink">{title}</span>
           <span className="flex shrink-0 items-center gap-3">
-            {hint ? <span className="hidden text-small text-ink-2 sm:inline">{hint}</span> : null}
+            {hint ? (
+              <span className="hidden text-small text-ink-2 sm:inline">
+                <span className="sr-only"> — </span>
+                {hint}
+              </span>
+            ) : null}
             <ChevronIcon
               size={16}
               direction="down"
@@ -64,8 +83,8 @@ export function Disclosure({ title, hint, children, defaultOpen = false, open, o
           isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
         )}
       >
-        <div className="min-h-0 overflow-hidden">
-          <div className="max-w-[64ch] pb-6 pt-1 text-body text-ink-2">{children}</div>
+        <div className={cx('min-h-0', settled ? 'overflow-visible' : 'overflow-hidden')}>
+          <div className="max-w-[64ch] pb-6 pt-1 text-body text-ink-2">{!lazy || everOpened || isOpen ? children : null}</div>
         </div>
       </div>
     </div>

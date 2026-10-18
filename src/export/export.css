@@ -1,0 +1,75 @@
+/* Export page (?export=1). Fixed-size light-paper frames; nothing here touches the normal site. */
+.export-root {
+  min-height: 100vh;
+  background: var(--color-sunken);
+  padding: 32px 0 96px;
+}
+
+.export-root .export-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 56px;
+}
+
+.export-root .export-label {
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 0 8px;
+  color: var(--color-ink-2);
+  font: 14px/20px var(--font-mono);
+}
+
+.export-root .export-frame {
+  box-shadow: 0 1px 2px rgb(17 18 20 / 0.06);
+}
+
+/* The Waterfall brings its own scroll-in animation; exported frames are always fully built. */
+.export-root .wf-bar {
+  transition: none !important;
+}
+
+/* Evidence legend: poster scale. */
+.export-root .export-legend dl {
+  grid-template-columns: minmax(0, 1fr);
+  column-gap: 56px;
+}
+.export-root .export-legend--wide dl {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.export-root .export-legend dl > div {
+  padding-block: 40px 32px;
+}
+.export-root .export-legend:not(.export-legend--wide) dl > div {
+  padding-block: 46px 40px;
+}
+.export-root .export-legend dt {
+  font-size: 32px;
+  line-height: 40px;
+  gap: 16px;
+}
+.export-root .export-legend dt svg {
+  width: 20px;
+  height: 20px;
+}
+.export-root .export-legend dt span {
+  font-size: 15px;
+}
+.export-root .export-legend dd {
+  margin-top: 12px;
+  font-size: 24px;
+  line-height: 34px;
+}
+
+/* Waterfall inside the half-width column. */
+.export-root .export-waterfall .waterfall {
+  font-size: 16px;
+}
+
+.export-waterfall .waterfall li {
+  padding-block: 6px;
+}
+.export-waterfall .waterfall li p.text-mono-label,
+.export-waterfall .waterfall figcaption {
+  display: none;
+}

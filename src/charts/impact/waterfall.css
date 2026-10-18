@@ -1,0 +1,13 @@
+/* Waterfall bars: transform + opacity only. The bar is full track width; translateX/scaleX place and size it. */
+.waterfall .wf-bar {
+  transition: transform 650ms var(--ease-ui);
+  will-change: transform;
+}
+.waterfall-static .wf-bar {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .waterfall .wf-bar {
+    transition: none;
+  }
+}

@@ -1,12 +1,14 @@
 import { useMemo, useRef } from 'react';
 import { useMediaQuery, useWebGLAvailable } from '../hooks';
 import { ScrollTrigger, useScrollScene } from '../motion';
-import { useSimResult } from '../state/selectors';
+import { SISTEM_DALAM } from '../content/sistem';
 import { SectionIndex, cx } from '../ui';
-import { PARTS, partValue, type PartId } from '../viz3d/parts';
+import { PARTS, type PartId } from '../viz3d/parts';
 import { createStageStore, useStageState } from '../viz3d/stage';
 import CollectorStage from '../viz3d/CollectorStage';
 import { PartList } from './inside/PartList';
+import { UnitText } from './inside/UnitText';
+import { usePartValue, useReferenceCondition } from './inside/usePartValue';
 
 /**
  * 02 - Di dalam SolarVein: the page steps into the product. A graphite chapter rises over the paper with rounded
@@ -21,7 +23,8 @@ export default function Inside() {
   const wide = useMediaQuery('(min-width: 1024px)', true);
   const sm = useMediaQuery('(min-width: 640px)', true);
   const focus = useStageState(store, (s) => s.focusPart);
-  const result = useSimResult();
+  const valueOf = usePartValue();
+  const reference = useReferenceCondition();
   const root = useRef<HTMLElement>(null);
   const reduce = useMediaQuery('(prefers-reduced-motion: reduce)', false);
   const scrolly = wide && webgl !== false && !reduce;
@@ -35,7 +38,7 @@ export default function Inside() {
       const st = ScrollTrigger.create({
         trigger: '[data-pin]',
         start: 'top top',
-        end: '+=260%',
+        end: '+=200%',
         pin: true,
         pinSpacing: true,
         anticipatePin: 1,
@@ -63,23 +66,23 @@ export default function Inside() {
   return (
     <section
       ref={root}
-      id="di-dalam"
-      aria-labelledby="di-dalam-title"
-      className="relative z-10 -mt-10 scroll-mt-14 rounded-t-[32px] bg-stage-0 text-stage-ink shadow-[0_-40px_80px_-40px_rgb(17_18_20/0.35)] lg:-mt-16 lg:rounded-t-[48px]"
+      id="sistem-dalam"
+      aria-labelledby="sistem-dalam-title"
+      className="relative z-10 -mt-10 scroll-mt-[5rem] rounded-t-[32px] bg-stage-0 text-stage-ink shadow-[0_-40px_80px_-40px_rgb(17_18_20/0.35)] lg:-mt-16 lg:rounded-t-[48px]"
     >
-      <div data-pin className={cx('page-wrap', scrolly ? 'flex h-svh items-center py-20' : 'py-20 sm:py-28')}>
+      <div data-pin className={cx('page-wrap', scrolly ? 'flex h-svh items-center pb-8 pt-24' : 'pb-6 pt-20 sm:pb-8 sm:pt-28')}>
         <div className={cx('w-full', scrolly && 'grid grid-cols-12 items-center gap-10')}>
-          <div className={cx(scrolly ? 'col-span-5 xl:col-span-4' : '')}>
-            <SectionIndex n="02" label="Di dalam SolarVein" inverse />
-            <h2 id="di-dalam-title" className="mt-5 text-h2 text-white lg:text-[52px] lg:leading-[56px]">
-              <span className="block">Empat lapis.</span> <span className="block">Satu jalur cairan.</span>
+          <div className={cx(scrolly ? 'col-span-5' : '')}>
+            <SectionIndex n={SISTEM_DALAM.index.n} label={SISTEM_DALAM.index.label} inverse />
+            <h2 id="sistem-dalam-title" className="mt-4 text-h2 text-white lg:text-[44px] lg:leading-[48px] min-[1400px]:text-[52px] min-[1400px]:leading-[56px]">
+              <span className="block">{SISTEM_DALAM.title[0]}</span> <span className="block">{SISTEM_DALAM.title[1]}</span>
             </h2>
 
             {scrolly ? (
-              <ol className="mt-12 list-none space-y-1 p-0" aria-label="Bagian kolektor">
+              <ol className="mt-8 min-h-[18.5rem] list-none space-y-1 p-0" aria-label={SISTEM_DALAM.listLabel}>
                 {PARTS.map((p) => {
                   const on = p.id === focus;
-                  const v = partValue(p.id, result);
+                  const v = valueOf(p.id);
                   return (
                     <li key={p.id}>
                       <button
@@ -97,7 +100,9 @@ export default function Inside() {
                           {on ? (
                             <span className="num ml-auto text-[15px] text-white">
                               {v.value}
-                              <span className="ml-1 text-stage-ink-2">{v.unit}</span>
+                              <span className="ml-1 text-stage-ink-2">
+                                <UnitText unit={v.unit} />
+                              </span>
                             </span>
                           ) : null}
                         </span>
@@ -118,11 +123,11 @@ export default function Inside() {
               </ol>
             ) : null}
             {scrolly ? (
-              <div aria-hidden="true" className="mt-10 h-px w-full bg-white/10">
+              <div aria-hidden="true" className="mt-6 h-px w-full bg-white/10">
                 <div className="h-px origin-left bg-sun" style={{ transform: 'scaleX(var(--inside-p, 0))' }} />
               </div>
             ) : null}
-            {scrolly ? <p className="mt-4 text-small text-stage-ink-2">Nilai dari kondisi Lab saat ini. Tampilan terurai, bukan skala.</p> : null}
+            {scrolly ? <p className="mt-4 text-small text-stage-ink-2">{SISTEM_DALAM.hint(reference)}</p> : null}
             <p className="sr-only" aria-live="polite">
               {sel ? `${sel.label}: ${sel.sentence}` : ''}
             </p>
@@ -132,7 +137,7 @@ export default function Inside() {
             data-tone="stage"
             className={cx(
               'overflow-hidden rounded-[20px] border border-stage-line bg-stage-0',
-              scrolly ? 'col-span-7 h-[min(78svh,760px)] xl:col-span-8' : 'mt-10 h-[clamp(360px,62svh,440px)] md:h-[520px]',
+              scrolly ? 'col-span-7 h-[min(78svh,760px)]' : 'mt-10 h-[clamp(360px,62svh,440px)] md:h-[520px]',
             )}
           >
             <CollectorStage variant="inspect" store={store} compactAnnotations={scrolly || !sm} zoomButtons={sm} explodeOnView={!scrolly} />
@@ -141,8 +146,9 @@ export default function Inside() {
       </div>
 
       {scrolly ? null : (
-        <div className="page-wrap pb-16 [&_.text-ink]:text-white [&_.text-ink-2]:text-stage-ink-2 [&_.border-ink]:border-white">
-          <PartList store={store} focus={focus} result={result} />
+        <div className="page-wrap pb-16 pt-2 [&_.text-ink]:text-white [&_.text-ink-2]:text-stage-ink-2 [&_.border-ink]:border-white">
+          <PartList store={store} focus={focus} valueOf={valueOf} />
+          <p className="mt-4 text-small text-stage-ink-2">{SISTEM_DALAM.hint(reference)}</p>
         </div>
       )}
     </section>

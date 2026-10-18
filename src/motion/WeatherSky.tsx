@@ -1,38 +1,51 @@
 import { useEffect, useRef } from 'react';
 import { weather } from './engine';
-import { clamp01 } from './spring';
-import type { VisualFrame } from './weather';
+import { skyLevels } from './sky';
+import type { VisualFrame } from './frame';
 
 /**
- * The weather outside the window: a sunny and a rainy sky gradient (design tokens `sky-sunny`, `sky-rainy`) stacked,
- * cross-faded by the VISUAL frame (never by a mode flag), so it moves with the same staggered interpolation as the
- * lighting in the 3D stage and the numbers.
+ * The weather outside the window, from the v2 VISUAL frame (never from a mode flag), so it moves with the same
+ * staggered interpolation as the 3D stage and the numbers: dawn glow, clear noon, humid grey, rainy grey, night.
+ * Layers and their opacity rules: `sky.ts`. Colours: the `sky-sunny` / `sky-rainy` design tokens and `ink` only.
  *
- *   t   = clamp((G - 120) / 780)               -> opacity of the sunny layer (Cerah t = 1, Hujan t = 0)
- *   sat = 1 - 0.5 * clamp(rain / 30)           -> the rainy layer thins toward paper as rain rises (0.75 at 15 mm/h)
- *
- * Writes `style.opacity` straight to two DOM nodes from the engine subscription: no React render per frame.
+ * Writes `style.opacity` straight to four DOM nodes from the engine subscription: no React render per frame.
  * Decorative (aria-hidden). Place as the first, absolutely positioned child of a `relative` band.
  */
+const DAWN_BG = 'linear-gradient(0deg, var(--sky-sunny-0) 0%, var(--sky-sunny-1) 38%, transparent 88%)';
+
 export function WeatherSky({ className }: { className?: string }) {
-  const sun = useRef<HTMLDivElement>(null);
   const rain = useRef<HTMLDivElement>(null);
+  const dawn = useRef<HTMLDivElement>(null);
+  const sun = useRef<HTMLDivElement>(null);
+  const night = useRef<HTMLDivElement>(null);
+  const root = useRef<HTMLDivElement>(null);
+
+  // The sky sits at a negative z-index; `body` paints its own paper background OVER negative layers of the root
+  // stacking context, so the host band must be an isolated stacking context for the sky to show.
+  useEffect(() => {
+    const host = root.current?.parentElement;
+    if (host && getComputedStyle(host).isolation !== 'isolate') host.style.isolation = 'isolate';
+  }, []);
 
   useEffect(() => {
     const apply = (f: VisualFrame): void => {
-      const t = clamp01((f.inputs.irradiance - 120) / 780);
-      const sat = 1 - 0.5 * clamp01(f.inputs.rainMmH / 30);
-      if (sun.current) sun.current.style.opacity = t.toFixed(3);
-      if (rain.current) rain.current.style.opacity = sat.toFixed(3);
+      const c = f.climate;
+      const L = skyLevels(f.inputs.irradiance, f.inputs.rainMmH, c ? c.rh : 0.6, f.hourOfDay ?? 12);
+      if (rain.current) rain.current.style.opacity = L.rain.toFixed(3);
+      if (dawn.current) dawn.current.style.opacity = L.dawn.toFixed(3);
+      if (sun.current) sun.current.style.opacity = L.sun.toFixed(3);
+      if (night.current) night.current.style.opacity = L.night.toFixed(3);
     };
     apply(weather.frame());
     return weather.subscribe(apply, 0);
   }, []);
 
   return (
-    <div aria-hidden="true" className={className}>
+    <div ref={root} aria-hidden="true" className={className}>
       <div ref={rain} className="sky-rainy absolute inset-0" />
+      <div ref={dawn} className="absolute inset-0 opacity-0" style={{ backgroundImage: DAWN_BG }} />
       <div ref={sun} className="sky-sunny absolute inset-0" />
+      <div ref={night} className="absolute inset-0 bg-ink opacity-0" />
     </div>
   );
 }

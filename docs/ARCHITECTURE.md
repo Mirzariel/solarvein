@@ -1,135 +1,72 @@
-# SolarVein Liquid - Architecture
+# SolarVein - Architecture (v2)
 
-> **Post-redesign update.** Sections are now Opening → 01 Pengalaman (Hero) → 02 Di dalam (Inside) → Dampak (Impact)
-> → 03 Lab → 04 Perbandingan → Penutup. New since this document was written: `src/motion/` (weather engine: a GSAP
-> timeline interpolates the sim inputs and runs `simulate()` per frame into a `VisualFrame` consumed by 3D effects and
-> throttled readouts — the one sanctioned place outside selectors that calls the sim), `src/state/impact.ts`
-> (Dampak scaler), per-stage 3D stores (`src/viz3d/stage.tsx`), `Schematic` (SVG cross-section reused in the Lab and
-> as the no-WebGL fallback). Recharts sections receive a deferred/throttled input copy so slider drags stay cheap;
-> off-screen WebGL stages render 0 frames. See README.md and MOTION_SYSTEM.md for the current picture.
+Interactive engineering site for **Adaptive Solar Thermal Recovery for Low-Carbon Hospitality** (liquid PV/T roof array
+on a 100-room hotel -> adaptive thermal router -> DHW preheat, desiccant research path, buffer tank, bypass).
+Contract: [CONTRACT-v2.md](CONTRACT-v2.md). Physics: [physics/](physics/). The v1 "dual-mode Cerah/Hujan" documents
+(CONTRACT.md, PHYSICS.md) are history; the v1 code was removed at the cutover.
 
-Interactive engineering site for a dual-mode photovoltaic-thermal (PVT) collector.
-Stack: Vite 8, React 19, TypeScript 5.9 (strict, `noUncheckedIndexedAccess`), Tailwind v4,
-three + React Three Fiber 9 + drei 10, recharts 3, zustand 5, vitest 5.
+Stack: Vite 8, React 19, TypeScript 5.9 (strict, `noUncheckedIndexedAccess`), Tailwind v4, three + React Three Fiber 9 +
+drei 10, recharts 3, zustand 5, GSAP + Lenis, vitest 5.
 
-## 1. Stack rationale
-
-**React Three Fiber for the centerpiece (not SVG).** The collector is a layered object
-(glass, cells, interface, absorber, serpentine channel, insulation) that users orbit, explode and
-cut in cross-section. That needs real depth, occlusion, lighting and per-frame animated flow
-(particles along a 3D serpentine). Doing this in SVG means faking projection by hand and
-re-rendering thousands of DOM nodes. R3F gives a declarative scene graph that composes with React
-state, and drei supplies controls, helpers and `<Html>` labels.
-**Fallback:** `useWebGLAvailable()` feature-detects WebGL once. When it is `false` (or the 3D chunk
-fails), Hero renders a static/animated SVG cross-section driven by the same store and `SimResult`,
-so no information is lost.
-
-**zustand for state.** The state is small, global and read from distant places (3D canvas, control
-panel, charts). zustand gives selector-based subscriptions (no provider re-render storms), works
-outside React (render loops, tests in a node environment via `useStore.getState()`), and needs no
-boilerplate. Context would re-render every consumer on each slider tick; Redux is excessive here.
-
-**recharts for 2D data.** Declarative, React-native, SVG output (accessible, themeable with CSS
-variables), adequate for the volume of data (13 hourly points, a handful of bars). It lives in
-lazy chunks so it never blocks first paint.
-
-**Tailwind v4** (CSS-first tokens in `src/index.css`) for styling; design primitives live in `src/ui`.
-
-## 2. Folder map
+## Folder map
 
 ```
 src/
-  sim/            Pure physics. No React, no DOM. Owner: physics. (types.ts is the contract.)
-  state/          zustand store (store.ts), memoised derived hooks (selectors.ts), tests.
-  hooks/          useReducedMotion, useWebGLAvailable, useInView, useMediaQuery.
-  viz3d/          R3F scene, geometry contract (dims.ts), effects/ (flow, heat arrows).
-  charts/         recharts wrappers for instrumentation/comparison/carbon.
-  ui/             Design-system primitives (buttons, sliders, cards, readouts).
-  sections/       Page sections in page order; one file per section (+ hero/ subfolder).
-  ErrorBoundary.tsx, App.tsx, main.tsx
-docs/             CONTRACT.md (binding), ARCHITECTURE.md, PHYSICS.md, DESIGN.md
+  sim/                Pure TypeScript. No React, DOM or three.
+    model.ts          Collector: simulate(SimInputs, 'pvt-liquid' | 'conventional-pv') -> SimResult
+                      (energy balance, eps-NTU, pump, stagnation, condensation bound). types.ts = contract.
+    presets.ts        DEFAULT_INPUTS, INPUT_LIMITS.   reference.ts = static reference state of the walk-through.
+    system/           Hotel system: climate, tank, router, DHW, desiccant, carbon, economics, day/annual
+                      simulation, views.ts (cached SystemView). Barrel: system/index.ts (lead only).
+    __tests__/        Collector physics invariants.  system/__tests__/golden.test.ts pins the v2 numbers.
+  state/
+    system.ts         useSystemStore: user choices + view state only (sys, scenario, strategy, hour, mode target...).
+    systemSelectors.ts  Memoised hooks over getSystemView(): useDay, useStep, useYear, useBaselines, ...
+    systemEngineBinding.ts  Binds the store to the visual clock.
+  motion/             systemEngine.ts = the app-wide visual clock (`weather` in engine.ts): springs/GSAP between
+                      DayResult steps, calls simulate() per frame -> VisualFrame (frame.ts). hooks.ts = readers.
+  viz3d/              R3F collector + hotel roof. stage.tsx = per-stage store (framing, exploded, layers, focus part).
+                      Schematic.tsx = SVG cutaway, the no-WebGL fallback (reads the live frame).
+  sections/           Page sections in page order (nav.ts has ids/numbering) + per-section subfolders.
+  charts/ export/ presentation/ ui/ hooks/ content/
+docs/                 CONTRACT-v2.md (binding), ARCHITECTURE.md, MOTION-v2.md, physics/*.md, audit/ (history)
 ```
 
-## 3. Data flow
+## Data flow
 
 ```
- UI controls (ControlPanel, mode switcher)
-        |  setMode / setInput
-        v
- zustand store  --  inputs: SimInputs   (always clamped)
-        |            mode: sunny | rainy | lab
-        |  clampInputs()  (src/sim/model.ts)  inside every write
-        v
- selectors.ts   getSimResult / getComparison / getDayProfile   (WeakMap cache keyed by `inputs` reference)
-        |  simulate(), compareConfigurations(), simulateDay(), computeCarbon()
-        v
- hooks: useSimResult()  useComparison()  useDayProfile(s)  useCarbonResult()
-        v
- views: Hero (3D + readouts) | Instrumentation | Comparison | Carbon | Assumptions
+ controls (Hero/Lab/Router...)  -- setModeTarget / setScenario / setHour / setSys -->  useSystemStore
+        |                                                                                  |
+        |                                              getSystemView(sys)  (LRU, simKey/fullKey caches)
+        |                                                  simulateSystem / simulateYear / compareBaselines
+        v                                                                                  v
+  systemSelectors hooks  <---------------------------------------------------------  DayResult / AnnualResult
+  (text, charts, tables)                                                                   |
+                                                                                           v
+                                               motion/systemEngine (store subscription): target = DayStep at `hour`
+                                               -> VisualFrame { result: simulate(visual inputs), router, climate }
+                                                                  |
+                                          3D effects, DOM-painted readouts, Schematic fallback (no React render per frame)
 ```
 
-Viewer state (exploded, cross-section, layer visibility, flow/heat toggles, auto-rotate,
-`focusLayer`) lives in the same store but is independent of physics; changing it never triggers a
-simulation.
+Rules: views never compute physics; every displayed number comes from `src/sim/**`. The engine is the one sanctioned
+caller of `simulate()` outside `sim/` (it runs on every animation step). Viewer state of a 3D stage (explode, cross
+section, layer visibility, focus/hover part, framing) is stage-local (`createStageStore`), so two stages on one page
+never interfere. Controller modes A/B/C are computed states, never clock labels.
 
-## 4. State ownership
+## Performance
 
-| State | Owner | Notes |
-|---|---|---|
-| `mode`, `inputs` | store | `setMode('sunny'/'rainy')` loads a preset; `'lab'` keeps current inputs. `setInput` clamps and flips to `'lab'` as soon as inputs depart from the active preset. |
-| viewer (`exploded`, `crossSection`, `layerVisibility`, `showFlow`, `showHeatArrows`, `autoRotate`, `focusLayer`) | store | Read by `viz3d` and by the control panel / legend. |
-| `carbon` | store | `CarbonAssumptions`; edited in the Carbon section. |
-| `comparisonScenario` | store | `'current' | 'sunny' | 'rainy'`. |
-| Derived physics | selectors | Never stored; recomputed once per `inputs` reference and shared. |
-| Ephemeral UI (hover, open accordions, tooltips) | component `useState` | Not global. |
+- `React.lazy` sections and a lazy WebGL chunk (three/R3F); recharts in lazy chunks.
+- Annual and area-sweep simulations are cached per `simKey` and shared across views; sections that sit below the
+  fold read a deferred system view so slider drags stay cheap.
+- 3D: demand-driven frame loop, off-screen stages render 0 frames, no per-frame allocations in effects.
+- Reduced motion snaps every transition; no-WebGL falls back to the SVG cutaway with the same live numbers.
 
-Rules: store state is replaced immutably (reference identity is the change signal); components
-subscribe to slices (`useStore(s => s.exploded)`), never to the whole store.
+## Testing
 
-## 5. Integration boundaries
-
-- `src/sim` is pure and UI-free: no imports from React, DOM, three or the store. It is the single
-  source of every displayed number (golden rule 7).
-- Views never compute physics. They call the selector hooks and format the result.
-- `viz3d` receives data via props or store slices; it does not import `sim` internals.
-- The store imports only `sim` (inputs, presets, clamp, carbon defaults) and the `LayerId` /
-  `LAYERS` constants from `viz3d/dims.ts` (pure data, no three import).
-- Section files are default exports with a stable section id (`hero`, `prinsip`, `instrumentasi`,
-  `perbandingan`, `musim`, `karbon`, `asumsi`) for header anchors.
-
-## 6. Performance strategy
-
-- **Code splitting:** Instrumentation, Comparison, Carbon are `React.lazy` + `Suspense` (they pull
-  recharts). The three/R3F code is loaded by Hero (itself lazy-loading the Canvas). Recommended
-  `manualChunks`: `three` (three, @react-three/fiber, @react-three/drei) and `recharts`
-  (recharts + d3-*).
-- **Memoised physics:** one `simulate` per inputs change, shared by all consumers
-  (WeakMap cache in `selectors.ts`).
-- **3D:** `dpr={[1, 2]}` cap, `frameloop="demand"` when idle/reduced-motion, pause the render loop
-  when Hero is offscreen (`useInView`), instanced/merged geometry for flow particles, no
-  per-frame allocations.
-- **Charts:** disable animation when offscreen or reduced motion; mount only when in view.
-- **Reduced layout shift:** lazy sections show a min-height placeholder.
-
-## 7. Accessibility strategy
-
-- "Lewati ke konten utama" skip link; `<main id="konten">` is focusable.
-- Semantic landmarks (header, main, footer) and one `h1` (Hero).
-- `useReducedMotion()` disables auto-rotate, flow particles and chart animation; static states
-  still convey regime via text.
-- The 3D canvas is not the only carrier of information: the regime statement, readouts and an SVG
-  or table equivalent are always in the DOM; the canvas has an `aria-label`.
-- All controls are native inputs with labels, keyboard operable, visible focus rings.
-- Colour is never the only signal (regime has text and icon).
-- User-facing text is Indonesian (`lang="id"`).
-- `ErrorBoundary` shows an Indonesian `role="alert"` fallback with retry.
-
-## 8. Testing strategy
-
-- `vitest` in a node environment (`src/**/*.test.ts`).
-- `src/sim/*.test.ts`: physics invariants (energy balance, sign convention, flow direction,
-  monotonic trends, preset sanity).
-- `src/state/store.test.ts`: preset loading, clamping, lab switching, reset, viewer toggles,
-  selector cache identity. Uses zustand directly via `useStore.getState()`, no DOM.
-- Visual/interaction behaviour is verified manually in the browser; `npm run typecheck` and
-  `npm run build` gate every change.
+`npx tsc -b && npx vitest run && npx vite build` gate every change (`npm run gate`).
+- `sim/system/__tests__/golden.test.ts`: v2 outputs (4 scenarios x 3 strategies, annual totals, B1..B4 ledgers,
+  desiccant sweep, collector states) to 1e-6 relative. Never re-record it to make a refactor pass.
+- `sim/__tests__/`: collector invariants (energy closure, flow vs heat direction, independent solver, glass series
+  resistance, rain term bounds, eta_th vs T_in, pump, stagnation).
+- Visual/interaction checks: `scripts/qa/*` (Playwright) and the `sv-adversarial-qa` skill.
